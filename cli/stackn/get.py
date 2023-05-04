@@ -28,7 +28,7 @@ def _find_dict_by_value(dicts, key, value):
     try:
         res = next(item for item in dicts if item[key] == value)
     except Exception as e:
-        print("Object type {} doesn't exist.".format(value))
+        print(f"Object type {value} doesn't exist.")
         return []
     return res
 
@@ -42,9 +42,7 @@ def get():
 @click.option('-c', '--category', required=False, default=[])
 @click.option('--secure/--insecure', required=False, default=True)
 def app(category, secure):
-    params = []
-    if category:
-        params = {"app__category": category.lower()}
+    params = {"app__category": category.lower()} if category else []
     apps = call_project_endpoint('appinstances', params=params, conf={
                                  "STACKN_SECURE": secure})
 
@@ -56,16 +54,17 @@ def app(category, secure):
         print("There are no apps associated with the current project.")
         return
 
-    applist = list()
+    applist = []
     for app in apps:
-        tmp = dict()
-        tmp['name'] = app['name']
-        tmp['app_name'] = app['app']['name']
-        tmp['app_cat'] = app['app']['category']['name']
-        tmp['url'] = ''
-        tmp['state'] = app['state']
         status = max(app['status'], key=lambda x: x['id'])
-        tmp['status'] = status['status_type']
+        tmp = {
+            'name': app['name'],
+            'app_name': app['app']['name'],
+            'app_cat': app['app']['category']['name'],
+            'url': '',
+            'state': app['state'],
+            'status': status['status_type'],
+        }
         if 'url' in app['table_field']:
             tmp['url'] = app['table_field']['url']
         applist.append(tmp)
@@ -79,17 +78,14 @@ def app(category, secure):
 @click.option('--secure/--insecure', required=False, default=True)
 def get_curr(secure):
 
-    current = get_current(secure=secure)
-
-    if not current:
+    if not (current := get_current(secure=secure)):
         return False
-    else:
-        if current['STACKN_URL']:
-            print("Studio: {}".format(current['STACKN_URL']))
-            if current['STACKN_PROJECT']:
-                print("Project: {}".format(current['STACKN_PROJECT']))
-            else:
-                print("No project set.")
+    if current['STACKN_URL']:
+        print(f"Studio: {current['STACKN_URL']}")
+        if current['STACKN_PROJECT']:
+            print(f"Project: {current['STACKN_PROJECT']}")
+        else:
+            print("No project set.")
 
 
 @get.command('environment')
@@ -112,13 +108,14 @@ def environment(project, studio_url, secure):
         print("There are no environments associated with the current project")
         return
 
-    envlist = list()
+    envlist = []
     for env in environments:
-        tmp = dict()
-        tmp['name'] = env['name']
-        tmp['app_name'] = env['app']['name']
-        tmp['cat'] = env['app']['category']['name']
-        tmp['image'] = env['repository']+'/'+env['image']
+        tmp = {
+            'name': env['name'],
+            'app_name': env['app']['name'],
+            'cat': env['app']['category']['name'],
+            'image': env['repository'] + '/' + env['image'],
+        }
         envlist.append(tmp)
     header = ['Category', 'App', 'Name', 'Image']
     fields = ['cat', 'app_name', 'name', 'image']
@@ -175,12 +172,13 @@ def mlflow(project, studio_url, secure):
         print("No MLflows endpoints are associated to the current project.")
         return
 
-    mlflowlist = list()
+    mlflowlist = []
     for mlflow in mlflows:
-        tmp = dict()
-        tmp['name'] = mlflow['name']
-        tmp['URL'] = mlflow['mlflow_url']
-        tmp['S3'] = mlflow['s3']['name']
+        tmp = {
+            'name': mlflow['name'],
+            'URL': mlflow['mlflow_url'],
+            'S3': mlflow['s3']['name'],
+        }
         mlflowlist.append(tmp)
 
     _print_table(mlflowlist, ['Name', 'URL', 'S3'], ['name', 'URL', 'S3'])
@@ -221,9 +219,7 @@ def obj(object_type, project, studio_url, secure):
         print("No model objects are associated to the current project.")
         return
 
-    obj_dict = dict()
-    for obj_type in object_types:
-        obj_dict[str(obj_type['id'])] = obj_type['name']
+    obj_dict = {str(obj_type['id']): obj_type['name'] for obj_type in object_types}
     for obj in objects:
         obj['object_type'] = obj_dict[str(obj['object_type'][0])]
 
@@ -270,11 +266,9 @@ def templates(studio_url, secure):
         print("There are no templates.")
         return
 
-    templateslist = list()
+    templateslist = []
     for template in templates:
-        tmp = dict()
-        tmp['name'] = template['name']
-        tmp['description'] = template['description']
+        tmp = {'name': template['name'], 'description': template['description']}
         templateslist.append(tmp)
 
     _print_table(templateslist, ['Name', 'Description'], [
@@ -285,13 +279,10 @@ def templates(studio_url, secure):
 @click.option('--secure/--insecure', required=False, default=True)
 def get_rem(secure):
 
-    current_remote = get_remote(inp_conf={'STACKN_SECURE': secure})
-
-    if not current_remote:
+    if not (current_remote := get_remote(inp_conf={'STACKN_SECURE': secure})):
         return False
-    else:
-        for curr in current_remote:
-            print(curr)
+    for curr in current_remote:
+        print(curr)
 
 
 @get.command('s3')
@@ -305,10 +296,7 @@ def s3(project, studio_url, name, secure):
         'STACKN_URL': studio_url,
         'STACKN_SECURE': secure
     }
-    params = []
-    if name:
-        params = {"name": name}
-
+    params = {"name": name} if name else []
     s3s = call_project_endpoint('s3', params=params, conf=conf)
 
     if s3s == False:

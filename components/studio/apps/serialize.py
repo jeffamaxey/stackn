@@ -33,7 +33,7 @@ key_words = ['appobj',
 
 def serialize_model(form_selection):
     print("SERIALIZING MODEL")
-    model_json = dict()
+    model_json = {}
     obj = []
     if 'model' in form_selection:
         model_id = form_selection.get('model', None)
@@ -56,16 +56,18 @@ def serialize_model(form_selection):
                 "version": obj[0].version,
                 "release_type": obj[0].release_type,
                 "description": obj[0].description,
-                "url": "http://{}".format(obj[0].s3.host),
+                "url": f"http://{obj[0].s3.host}",
                 "service": obj[0].s3.app.parameters["service"]["name"],
                 "port": obj[0].s3.app.parameters["service"]["port"],
-                "targetport": obj[0].s3.app.parameters["service"]["targetport"],
+                "targetport": obj[0].s3.app.parameters["service"][
+                    "targetport"
+                ],
                 "access_key": obj[0].s3.access_key,
                 "secret_key": obj[0].s3.secret_key,
                 "bucket": obj[0].bucket,
                 "obj": obj[0].uid,
                 "path": obj[0].path,
-                "type": object_type[0].slug
+                "type": object_type[0].slug,
             }
         }
 
@@ -74,7 +76,7 @@ def serialize_model(form_selection):
 
 def serialize_S3(form_selection, project):
     print("SERIALIZING S3")
-    s3_json = dict()
+    s3_json = {}
     if "S3" in form_selection:
 
         s3_id = form_selection.get('S3', None)
@@ -100,7 +102,7 @@ def serialize_S3(form_selection, project):
 
 def serialize_flavor(form_selection, project):
     print("SERIALIZING FLAVOR")
-    flavor_json = dict()
+    flavor_json = {}
     if 'flavor' in form_selection:
         flavor_id = form_selection.get('flavor', None)
         try:
@@ -132,7 +134,7 @@ def serialize_flavor(form_selection, project):
 
 def serialize_environment(form_selection, project):
     print("SERIALIZING ENVIRONMENT")
-    environment_json = dict()
+    environment_json = {}
     if 'environment' in form_selection:
         environment_id = form_selection.get('environment', None)
         try:
@@ -156,11 +158,10 @@ def serialize_environment(form_selection, project):
 
 def serialize_apps(form_selection, project):
     print("SERIALIZING DEPENDENT APPS")
-    parameters = dict()
-    parameters['apps'] = dict()
+    parameters = {'apps': {}}
     app_deps = []
     for key in form_selection.keys():
-        if "app:" in key and key[0:4] == "app:":
+        if "app:" in key and key[:4] == "app:":
 
             app_name = key[4:]
             try:
@@ -170,15 +171,15 @@ def serialize_apps(form_selection, project):
                     app = Apps.objects.filter(
                         slug=app_name).order_by('-revision').first()
             except Exception as err:
-                print("Failed to fetch app: {}".format(app_name))
+                print(f"Failed to fetch app: {app_name}")
                 print(err)
                 raise
             if not app:
-                print("App not found: {}".format(app_name))
+                print(f"App not found: {app_name}")
 
-            parameters['apps'][app.slug] = dict()
+            parameters['apps'][app.slug] = {}
             print(app_name)
-            print('id: '+str(form_selection[key]))
+            print(f'id: {str(form_selection[key])}')
             try:
                 objs = AppInstance.objects.filter(
                     pk__in=form_selection.getlist(key))
@@ -196,7 +197,7 @@ def serialize_apps(form_selection, project):
 
 def serialize_primitives(form_selection):
     print("SERIALIZING PRIMITIVES")
-    parameters = dict()
+    parameters = {}
     keys = form_selection.keys()
     for key in keys:
         if key not in key_words and 'app:' not in key:
@@ -211,13 +212,9 @@ def serialize_primitives(form_selection):
 
 def serialize_permissions(form_selection):
     print("SERIALIZING PERMISSIONS")
-    parameters = dict()
-    parameters['permissions'] = {
-        "public": False,
-        "project": False,
-        "private": False
+    parameters = {
+        'permissions': {"public": False, "project": False, "private": False}
     }
-
     permission = form_selection.get('permission', None)
     parameters['permissions'][permission] = True
     print(parameters)
@@ -226,11 +223,11 @@ def serialize_permissions(form_selection):
 
 def serialize_appobjs(form_selection):
     print("SERIALIZING APPOBJS")
-    parameters = dict()
+    parameters = {}
     appobjs = []
     if 'appobj' in form_selection:
         appobjs = form_selection.getlist('appobj')
-        parameters['appobj'] = dict()
+        parameters['appobj'] = {}
         for obj in appobjs:
             app = Apps.objects.get(pk=obj)
             parameters['appobj'][app.slug] = True
@@ -241,9 +238,8 @@ def serialize_appobjs(form_selection):
 def serialize_default_values(aset):
     parameters = []
     if 'default_values' in aset:
-        parameters = dict()
         print(aset['default_values'])
-        parameters['default_values'] = aset['default_values']
+        parameters = {'default_values': aset['default_values']}
         for key in parameters['default_values'].keys():
             if parameters['default_values'][key] == "False":
                 parameters['default_values'][key] = False
@@ -254,23 +250,27 @@ def serialize_default_values(aset):
 
 
 def serialize_project(project):
-    parameters = dict()
+    parameters = {}
     if project.mlflow:
         parameters['mlflow'] = {
             "url": project.mlflow.mlflow_url,
             "host": project.mlflow.host,
             "service": project.mlflow.app.parameters["service"]["name"],
             "port": project.mlflow.app.parameters["service"]["port"],
-            "targetport": project.mlflow.app.parameters["service"]["targetport"],
-            "s3url": 'https://'+project.mlflow.s3.host,
+            "targetport": project.mlflow.app.parameters["service"][
+                "targetport"
+            ],
+            "s3url": f'https://{project.mlflow.s3.host}',
             "s3service": project.mlflow.s3.app.parameters["service"]["name"],
             "s3port": project.mlflow.s3.app.parameters["service"]["port"],
-            "s3targetport": project.mlflow.s3.app.parameters["service"]["targetport"],
+            "s3targetport": project.mlflow.s3.app.parameters["service"][
+                "targetport"
+            ],
             "access_key": project.mlflow.s3.access_key,
             "secret_key": project.mlflow.s3.secret_key,
             "region": project.mlflow.s3.region,
             "username": project.mlflow.basic_auth.username,
-            "password": project.mlflow.basic_auth.password
+            "password": project.mlflow.basic_auth.password,
         }
     return parameters
 
@@ -278,7 +278,7 @@ def serialize_project(project):
 def serialize_cli(username, project, aset):
     user = User.objects.get(username=username)
     token, created = Token.objects.get_or_create(user=user)
-    parameters = dict()
+    parameters = {}
     if 'export-cli' in aset and aset['export-cli'] == 'True':
         parameters['cli_setup'] = {
             "url": settings.STUDIO_URL,
@@ -291,8 +291,7 @@ def serialize_cli(username, project, aset):
 
 def serialize_env_variables(username, project, aset):
     print("SERIALIZING ENV VARIABLES")
-    parameters = dict()
-    parameters['app_env'] = dict()
+    parameters = {'app_env': {}}
     print("fetching apps")
     try:
         apps = AppInstance.objects.filter(Q(owner__username=username) | Q(
@@ -318,10 +317,10 @@ def serialize_env_variables(username, project, aset):
 
 def serialize_app(form_selection, project, aset, username):
     print("SERIALIZING APP")
-    parameters = dict()
+    parameters = {}
 
     model_params, model_deps = serialize_model(form_selection)
-    parameters.update(model_params)
+    parameters |= model_params
 
     app_params, app_deps = serialize_apps(form_selection, project)
     parameters.update(app_params)

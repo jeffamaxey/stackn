@@ -23,7 +23,7 @@ class ProjectPermission(BasePermission):
             is_authorized = True
         elif request.user in project.authorized.all():
             is_authorized = True
-        print('Is authorized: {}'.format(is_authorized))
+        print(f'Is authorized: {is_authorized}')
         return is_authorized
 
 
@@ -33,9 +33,6 @@ class AdminPermission(BasePermission):
         """
         Should simply return, or raise a 403 response.
         """
-        is_authorized = False
-
-        if request.user.is_superuser:
-            is_authorized = True
-        print('Is authorized: {}'.format(is_authorized))
+        is_authorized = bool(request.user.is_superuser)
+        print(f'Is authorized: {is_authorized}')
         return is_authorized

@@ -44,29 +44,26 @@ env_vars = {
 def _check_flag_insecure(inp_conf):
     stackn_conf_file = _load_config_file_full({})
 
-    # If the general default STACKN_SECURE is still True, but in the configuration file shows that
-    # it is set to False instead (because the user has logged in with --insecure) Then we remind the user to use --insecure
-    if stackn_conf_file['current']['STACKN_SECURE'] == False and inp_conf['STACKN_SECURE']:
-        print("Do you perhaps have a local STACKn deployment? If so, don't forget to use --insecure to make stackn API calls working.")
-        return True
-    else:
+    if (
+        stackn_conf_file['current']['STACKN_SECURE'] != False
+        or not inp_conf['STACKN_SECURE']
+    ):
         return False
+    print("Do you perhaps have a local STACKn deployment? If so, don't forget to use --insecure to make stackn API calls working.")
+    return True
 
 
 def _get_stackn_config_path():
-    if 'STACKN_CONFIG_PATH' in os.environ:
-        config_path = os.environ['STACKN_CONFIG_PATH']
-    else:
-        config_path = global_vars['STACKN_CONFIG_PATH']
+    config_path = os.environ.get(
+        'STACKN_CONFIG_PATH', global_vars['STACKN_CONFIG_PATH']
+    )
     dirpath = os.path.expanduser(config_path)
     if not os.path.exists(dirpath):
         os.mkdir(dirpath)
-    if 'STACKN_CONFIG_FILE' in os.environ:
-        config_file_path = os.environ['STACKN_CONFIG_FILE']
-    else:
-        config_file_path = global_vars['STACKN_CONFIG_FILE']
-    path_to_config = os.path.join(dirpath, config_file_path)
-    return path_to_config
+    config_file_path = os.environ.get(
+        'STACKN_CONFIG_FILE', global_vars['STACKN_CONFIG_FILE']
+    )
+    return os.path.join(dirpath, config_file_path)
 
 
 def _get_studio_url_key(studio_url):
@@ -85,20 +82,16 @@ def _get_config_file(rw='r'):
 
 # Checking if a user is logged. Promtping it if otherwise
 def _is_user_logged():
-    stackn_conf_file = _load_config_file_full({})
-
-    if not stackn_conf_file:
-        print("You are not logged in.")
-        print("Please use the command: 'stackn login -u <your-user> -p <your-user-password>' --url <your-studio-url>")
-        return False
-    else:
+    if stackn_conf_file := _load_config_file_full({}):
         return True
+    print("You are not logged in.")
+    print("Please use the command: 'stackn login -u <your-user> -p <your-user-password>' --url <your-studio-url>")
+    return False
 
 
 def _load_config_file_full(conf):
     stackn_config = []
-    fin = _get_config_file()
-    if fin:
+    if fin := _get_config_file():
         try:
             stackn_config = json.load(fin)
         except:
@@ -107,8 +100,7 @@ def _load_config_file_full(conf):
 
 
 def _load_config_file_url(conf, is_login=False):
-    stackn_config_full = _load_config_file_full(conf)
-    if stackn_config_full:
+    if stackn_config_full := _load_config_file_full(conf):
         try:
             no_scheme_url = _get_studio_url_key(conf['STACKN_URL'])
             if no_scheme_url in stackn_config_full.keys():
@@ -117,8 +109,7 @@ def _load_config_file_url(conf, is_login=False):
                 stackn_config = stackn_config_full[conf['STACKN_URL']]
         except KeyError as e:
             if conf['STACKN_URL'] and not is_login:
-                print("Failed to load config file from URL: {} not set up.".format(
-                    conf['STACKN_URL']))
+                print(f"Failed to load config file from URL: {conf['STACKN_URL']} not set up.")
                 print(e)
                 return False
             else:
@@ -174,7 +165,7 @@ def _set_current(conf):
         return []
 
     stackn_config = _load_config_file_full(conf)
-    if not 'current' in stackn_config:
+    if 'current' not in stackn_config:
         stackn_config['current'] = {'STACKN_URL': '',
                                     'STACKN_PROJECT': '', 'STACKN_SECURE': ''}
     if current['STACKN_URL']:
@@ -190,20 +181,19 @@ def _set_current(conf):
 
     if 'STACKN_URL' in os.environ and stackn_config['current']['STACKN_URL'] != '':
         print("STACKN_URL set as environment variable and this takes priority.")
-        print("Set by 'export STACKN_URL={}'".format(
-            stackn_config['current']['STACKN_URL']))
+        print(f"Set by 'export STACKN_URL={stackn_config['current']['STACKN_URL']}'")
     if 'STACKN_PROJECT' in os.environ and stackn_config['current']['STACKN_PROJECT'] != '':
         print("STACKN_PROJECT set as environment variable and this takes priority.")
-        print("Set by 'export STACKN_PROJECT={}'".format(
-            stackn_config['current']['STACKN_PROJECT']))
+        print(
+            f"Set by 'export STACKN_PROJECT={stackn_config['current']['STACKN_PROJECT']}'"
+        )
     if 'STACKN_SECURE' in os.environ and stackn_config['current']['STACKN_SECURE'] != '':
         print("STACKN_SECURE set as environment variable and this takes priority.")
-        print("Set by 'export STACKN_SECURE={}'".format(
-            stackn_config['current']['STACKN_SECURE']))
+        print(
+            f"Set by 'export STACKN_SECURE={stackn_config['current']['STACKN_SECURE']}'"
+        )
 
-    # Write to file
-    fout = _get_config_file('w')
-    if fout:
+    if fout := _get_config_file('w'):
         json.dump(stackn_config, fout)
         fout.close()
         return True
@@ -212,7 +202,7 @@ def _set_current(conf):
         return []
 
 
-def get_config(inp_config=dict(), required=[], is_login=False, print_warnings=True):
+def get_config(inp_config={}, required=[], is_login=False, print_warnings=True):
     # Order of priority:
     # 1. Values in inp_config
     # 2. Environment variables
@@ -225,13 +215,10 @@ def get_config(inp_config=dict(), required=[], is_login=False, print_warnings=Tr
         return False, False
 
     # Checking if user has forgot to use --insecure flag
-    if is_login:
-        pass
-    else:
-        if _check_flag_insecure(inp_config):
-            return False, False
+    if not is_login and _check_flag_insecure(inp_config):
+        return False, False
 
-    conf = dict()
+    conf = {}
     # Fetch from environment variables
     for var, val in env_vars.items():
         if var in inp_config and inp_config[var] != None:
@@ -247,32 +234,35 @@ def get_config(inp_config=dict(), required=[], is_login=False, print_warnings=Tr
         current = config_file_full['current']
     except:
         current = {}
-    if not conf['STACKN_URL']:
-        if 'STACKN_URL' in current:
-            conf['STACKN_URL'] = current['STACKN_URL']
-    if not conf['STACKN_PROJECT']:
-        if 'STACKN_PROJECT' in current:
-            conf['STACKN_PROJECT'] = current['STACKN_PROJECT']
+    if not conf['STACKN_URL'] and 'STACKN_URL' in current:
+        conf['STACKN_URL'] = current['STACKN_URL']
+    if not conf['STACKN_PROJECT'] and 'STACKN_PROJECT' in current:
+        conf['STACKN_PROJECT'] = current['STACKN_PROJECT']
 
     # Checking flag STACKN_SECURE and initialize it if needed
-    if 'STACKN_SECURE' in current and (conf['STACKN_SECURE'] == "" or conf['STACKN_SECURE'] == None):
+    if 'STACKN_SECURE' in current and (
+        conf['STACKN_SECURE'] == "" or conf['STACKN_SECURE'] is None
+    ):
         if print_warnings and current['STACKN_SECURE'] == False:
             print("Insecure mode is set in config, will not verify certificates.")
             print("Use stackn set current --secure to disable.")
         conf['STACKN_SECURE'] = current['STACKN_SECURE']
     # If we have a currently set remote URL, fetch from config file.
     if conf['STACKN_URL']:
-        config_file = _load_config_file_url(conf, is_login)
-        if config_file:
+        if config_file := _load_config_file_url(conf, is_login):
             for key, val in config_file.items():
-                if not (key in conf) or not conf[key] or key == 'STACKN_ACCESS_TOKEN':
+                if (
+                    key not in conf
+                    or not conf[key]
+                    or key == 'STACKN_ACCESS_TOKEN'
+                ):
                     conf[key] = val
         elif not is_login:
             return conf, False
 
     # Check that we have all required keys
     for key in required:
-        if not (key in conf) or not conf[key]:
+        if key not in conf or not conf[key]:
             return conf, False
     return conf, True
 
@@ -280,14 +270,15 @@ def get_config(inp_config=dict(), required=[], is_login=False, print_warnings=Tr
 def get_token(conf={}):
     # It send a POST request to /api/token-auth/
     # components/studio/api/views.py --> CustomAuthToken
-    if not "http" in conf['STACKN_URL']:
-        studio_url = "http://" + conf['STACKN_URL']
-    else:
-        studio_url = conf['STACKN_URL']
+    studio_url = (
+        conf['STACKN_URL']
+        if "http" in conf['STACKN_URL']
+        else "http://" + conf['STACKN_URL']
+    )
     # previously keycloak token url
     token_url = studio_url.strip('/')+'/api/token-auth/'
 
-    print("INFO: Token URL is: {}".format(token_url))
+    print(f"INFO: Token URL is: {token_url}")
 
     req = {'username': conf['STACKN_USER'],
            'password': conf['STACKN_PASS'],
@@ -311,20 +302,17 @@ def write_config(conf):
     path_to_config = _get_stackn_config_path()
     Path(path_to_config).touch()
 
-    f = open(path_to_config, 'r')
-    try:
-        current_config = json.load(f)
-    except:
-        current_config = dict()
-    f.close()
-
+    with open(path_to_config, 'r') as f:
+        try:
+            current_config = json.load(f)
+        except:
+            current_config = {}
     studio_url_key = _get_studio_url_key(studio_url)
     current_config[studio_url_key] = conf
 
     try:
-        fout = open(path_to_config, 'w')
-        json.dump(current_config, fout)
-        fout.close()
+        with open(path_to_config, 'w') as fout:
+            json.dump(current_config, fout)
     except Exception as err:
         print('Could not write tokens -- failed to write to file.')
         print(err)
@@ -332,8 +320,8 @@ def write_config(conf):
 
 def stackn_login(studio_url=[], client_id=[], username=[], password=[], secure=True):
     """ Login to Studio services. """
-    if not "http" in studio_url:
-        studio_url = "http://" + studio_url
+    if "http" not in studio_url:
+        studio_url = f"http://{studio_url}"
 
     inp_config = {
         'STACKN_URL': studio_url,

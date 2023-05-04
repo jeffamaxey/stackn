@@ -29,9 +29,7 @@ def add_pmo_to_publish(mdl, pmodel):
         s3 = s3fs.S3FileSystem(
             key=access_key,
             secret=secret_key,
-            client_kwargs={
-                'endpoint_url': 'http://'+host
-            }
+            client_kwargs={'endpoint_url': f'http://{host}'},
         )
     except Exception as err:
         print(err)
@@ -39,11 +37,10 @@ def add_pmo_to_publish(mdl, pmodel):
     try:
         # if e.g tensorflow model, the object is already compressed
         if path == filename:
-            fobj = s3.open(bucket+'/'+path, 'rb')
-        #else if model is e.g mlflow, the model artifact is a folder and needs to be compressed
+            fobj = s3.open(f'{bucket}/{path}', 'rb')
         else:
             #download files on folder inside bucket into tmp folder
-            s3.get(bucket+'/'+path, './tmp/', recursive=True)
+            s3.get(f'{bucket}/{path}', './tmp/', recursive=True)
             #create tar file
             with tarfile.open("model.tar", "w") as tar:
                 tar.add("./tmp/")
@@ -77,9 +74,7 @@ def get_download_url(model_id):
     minio_region = model.s3.region
 
     download_url = ""
-    path = ""
-    if model.object_type.slug == 'mlflow':
-        path = model.path 
+    path = model.path if model.object_type.slug == 'mlflow' else ""
     try:
         client = Minio(
             minio_host,
@@ -101,14 +96,16 @@ def create_client(S3_storage, secure_mode=True):
     try:
         access_key = S3_storage.access_key
     except Exception:
-        print("No access key could be found with the current S3 storage instance: {}".format(
-            S3_storage))
+        print(
+            f"No access key could be found with the current S3 storage instance: {S3_storage}"
+        )
         return []
     try:
         secret_key = S3_storage.secret_key
     except Exception:
-        print("No secret key could be found with the current S3 storage instance: {}".format(
-            S3_storage))
+        print(
+            f"No secret key could be found with the current S3 storage instance: {S3_storage}"
+        )
         return []
 
     # API connection does not want scheme in the minio URL
@@ -120,13 +117,16 @@ def create_client(S3_storage, secure_mode=True):
     else:
         minio_url = S3_storage.host
 
-    if not secure_mode:
-        client = Minio(minio_url, access_key=access_key,
-                       secret_key=secret_key, secure=secure_mode)
-    else:
-        client = Minio(minio_url, access_key=access_key, secret_key=secret_key)
-
-    return client
+    return (
+        Minio(minio_url, access_key=access_key, secret_key=secret_key)
+        if secure_mode
+        else Minio(
+            minio_url,
+            access_key=access_key,
+            secret_key=secret_key,
+            secure=secure_mode,
+        )
+    )
 
 
 # This Method use Minio Python API to save an artificat into a running minio server instance

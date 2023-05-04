@@ -83,7 +83,7 @@ class S3(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return '{} ({})'.format(self.name, self.project.slug)
+        return f'{self.name} ({self.project.slug})'
 
 
 class MLFlow(models.Model):
@@ -103,7 +103,7 @@ class MLFlow(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return '{} ({})'.format(self.name, self.project.slug)
+        return f'{self.name} ({self.project.slug})'
 
 
 # it will become the default objects attribute for a Project model
@@ -114,8 +114,8 @@ class ProjectManager(models.Manager):
         letters = string.ascii_lowercase
         secret = self.generate_passkey(40)
         slug = slugify(name)
-        slug_extension = ''.join(random.choice(letters) for i in range(3))
-        slug = '{}-{}'.format(slugify(slug), slug_extension)
+        slug_extension = ''.join(random.choice(letters) for _ in range(3))
+        slug = f'{slugify(slug)}-{slug_extension}'
 
         project = self.create(name=name, owner=owner, slug=slug, project_key=key, project_secret=secret,
                               description=description, repository=repository,
@@ -130,9 +130,7 @@ class ProjectManager(models.Manager):
         # Encrypt the key
         password = password.encode('ascii')
         base64_bytes = base64.b64encode(password)
-        password = base64_bytes.decode('ascii')
-
-        return password
+        return base64_bytes.decode('ascii')
 
 
 class Project(models.Model):
@@ -171,7 +169,7 @@ class Project(models.Model):
         ]
 
     def __str__(self):
-        return "Name: {} ({})".format(self.name, self.status)
+        return f"Name: {self.name} ({self.status})"
 
 
 class ProjectLog(models.Model):
@@ -205,7 +203,7 @@ class ProjectTemplate(models.Model):
         unique_together = ('slug', 'revision',)
 
     def __str__(self):
-        return '{} ({})'.format(self.name, self.revision)
+        return f'{self.name} ({self.revision})'
 
 
 class ReleaseName(models.Model):
@@ -218,4 +216,4 @@ class ReleaseName(models.Model):
         settings.PROJECTS_MODEL, on_delete=models.CASCADE, null=True)
 
     def __str__(self):
-        return '{}-{}-{}'.format(self.name, self.project, self.app)
+        return f'{self.name}-{self.project}-{self.app}'

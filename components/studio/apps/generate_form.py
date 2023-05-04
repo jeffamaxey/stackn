@@ -60,7 +60,7 @@ def get_form_apps(aset, project, myapp, user, appinstance=[]):
     app_deps = []
     if 'apps' in aset:
         dep_apps = True
-        app_deps = dict()
+        app_deps = {}
         apps = aset['apps']
         for app_name, option_type in apps.items():
             print(">>>>>")
@@ -107,7 +107,7 @@ def get_form_apps(aset, project, myapp, user, appinstance=[]):
 def get_form_primitives(aset, project, appinstance=[]):
     all_keys = aset.keys()
     print("PRIMITIVES")
-    primitives = dict()
+    primitives = {}
     if appinstance:
         ai_vals = flatten_json.flatten(appinstance.parameters, '.')
     for key in all_keys:
@@ -121,8 +121,8 @@ def get_form_primitives(aset, project, appinstance=[]):
                 for subkey, subval in aset[key].items():
                     print(subkey)
                     try:
-                        if subkey != 'meta' and subkey != 'meta_title':
-                            primitives[key][subkey]['default'] = ai_vals[key+'.'+subkey]
+                        if subkey not in ['meta', 'meta_title']:
+                            primitives[key][subkey]['default'] = ai_vals[f'{key}.{subkey}']
                     except Exception as err:
                         print(err)
     print(primitives)
@@ -158,7 +158,7 @@ def get_form_permission(aset, project, appinstance=[]):
 def get_form_appobj(aset, project, appinstance=[]):
     print("CHECKING APP OBJ")
     dep_appobj = False
-    appobjs = dict()
+    appobjs = {}
     if 'appobj' in aset:
         print("NEEDS APP OBJ")
         dep_appobj = True
@@ -173,7 +173,7 @@ def get_form_appobj(aset, project, appinstance=[]):
 def get_form_environments(aset, project, app, appinstance=[]):
     print("CHECKING ENVIRONMENT")
     dep_environment = False
-    environments = dict()
+    environments = {}
     if 'environment' in aset:
         dep_environment = True
         if aset['environment']['type'] == "match":
@@ -211,7 +211,7 @@ def get_form_S3(aset, project, app, appinstance=[]):
 
 
 def generate_form(aset, project, app, user, appinstance=[]):
-    form = dict()
+    form = {}
     form['dep_model'], form['models'] = get_form_models(
         aset, project, appinstance)
     form['dep_apps'], form['app_deps'] = get_form_apps(

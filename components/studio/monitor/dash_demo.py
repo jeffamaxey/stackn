@@ -106,10 +106,10 @@ def reducer_select(red_select, request):
     this_project = Project.objects.get(slug=project_slug)
     reducers = AppInstance.objects.filter(
         app=reducer_app, project=this_project)
-    options = []
-    for reducer in reducers:
-        options.append({"label": reducer.name, "value": str(reducer.pk)})
-
+    options = [
+        {"label": reducer.name, "value": str(reducer.pk)}
+        for reducer in reducers
+    ]
     combiners_info = []
     roundplot = {}
     combinerplot = {}
@@ -138,7 +138,7 @@ def reducer_select(red_select, request):
         #     print(document)
 
         try:
-            url = 'https://{}.{}/api/state'.format(r_host, r_domain)
+            url = f'https://{r_host}.{r_domain}/api/state'
             res = requests.get(url, verify=False)
             current_state = res.json()['state']
         except Exception as err:
@@ -148,7 +148,7 @@ def reducer_select(red_select, request):
         ])
 
         try:
-            url = 'https://{}.{}/api/combiners/info'.format(r_host, r_domain)
+            url = f'https://{r_host}.{r_domain}/api/combiners/info'
             print(url)
             res = requests.get(url, verify=False)
             combiners_raw = res.json()
@@ -167,8 +167,7 @@ def reducer_select(red_select, request):
             combiners_info.append(html.Tr(row))
 
         try:
-            url = 'https://{}.{}/api/combiners/roundplot'.format(
-                r_host, r_domain)
+            url = f'https://{r_host}.{r_domain}/api/combiners/roundplot'
             print(url)
             res = requests.get(url, verify=False)
             roundplot = res.json()
@@ -176,8 +175,7 @@ def reducer_select(red_select, request):
             print(err)
 
         try:
-            url = 'https://{}.{}/api/combiners/combinerplot'.format(
-                r_host, r_domain)
+            url = f'https://{r_host}.{r_domain}/api/combiners/combinerplot'
             print(url)
             res = requests.get(url, verify=False)
             combinerplot = res.json()
@@ -185,8 +183,7 @@ def reducer_select(red_select, request):
             print(err)
 
         try:
-            url = 'https://{}.{}/api/combiners/memcpuplot'.format(
-                r_host, r_domain)
+            url = f'https://{r_host}.{r_domain}/api/combiners/memcpuplot'
             print(url)
             res = requests.get(url, verify=False)
             memcpuplot = res.json()

@@ -59,9 +59,12 @@ def index(request, id=0):
                 request.session['app_tags'].pop(str(id))
 
     # reset app_tags if Apps Tab on Sidebar pressed
-    if id == 0:
-        if 'tf_add' not in request.GET and 'tf_remove' not in request.GET:
-            request.session['app_tags'] = {}
+    if (
+        id == 0
+        and 'tf_add' not in request.GET
+        and 'tf_remove' not in request.GET
+    ):
+        request.session['app_tags'] = {}
 
     published_apps = AppInstance.objects.filter(
         ~Q(state='Deleted'), access='public')

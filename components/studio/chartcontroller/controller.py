@@ -18,8 +18,7 @@ def delete(options):
     # building args for the equivalent of helm uninstall command
     args = ['helm', '--kubeconfig',
             str(KUBEPATH), '-n', options['namespace'], 'delete', options['release']]
-    result = subprocess.run(args, capture_output=True)
-    return result
+    return subprocess.run(args, capture_output=True)
 
 
 def deploy(options):
@@ -31,8 +30,7 @@ def deploy(options):
         try:
             chart_file = settings.MEDIA_ROOT+app.chart_archive.name
             tar = tarfile.open(chart_file, "r:gz")
-            extract_path = '/app/extracted_charts/' + \
-                app.slug+'/'+str(app.revision)
+            extract_path = f'/app/extracted_charts/{app.slug}/{str(app.revision)}'
             tar.extractall(extract_path)
             tar.close()
             chart = extract_path
@@ -42,20 +40,16 @@ def deploy(options):
     else:
         chart = 'charts/'+options['chart']
 
-    if not 'release' in options:
+    if 'release' not in options:
         print('Release option not specified.')
         return json.dumps({'status': 'failed', 'reason': 'Option release not set.'})
 
     # Save helm values file for internal reference
-    unique_filename = 'chartcontroller/values/{}-{}.yaml'.format(
-        str(uuid.uuid4()), str(options['app_name']))
-    f = open(unique_filename, 'w')
-    f.write(yaml.dump(options))
-    f.close()
-
+    unique_filename = f"chartcontroller/values/{str(uuid.uuid4())}-{str(options['app_name'])}.yaml"
+    with open(unique_filename, 'w') as f:
+        f.write(yaml.dump(options))
     # building args for the equivalent of helm install command
     args = ['helm', 'upgrade', '--install', '--kubeconfig',
             str(KUBEPATH), '-n', options['namespace'], options['release'], chart, '-f', unique_filename]
     print("CONTROLLER: RUNNING HELM COMMAND... ")
-    result = subprocess.run(args, capture_output=True)
-    return result
+    return subprocess.run(args, capture_output=True)

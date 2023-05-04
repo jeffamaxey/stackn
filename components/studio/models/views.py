@@ -79,129 +79,137 @@ class ModelCreate(LoginRequiredMixin, PermissionRequiredMixin, View):
         # Extracting form fields
         form = ModelForm(request.POST)
 
-        # if valid it saves model in S3 storage, create object in the db and redirect
-        if form.is_valid():
-            model_name = form.cleaned_data['name']
-            model_description = form.cleaned_data['description']
-            model_release_type = form.cleaned_data['release_type']
-            model_version = form.cleaned_data['version']
-            model_folder_name = form.cleaned_data['path']
-            model_type = request.POST.get('model-type')
-            model_persistent_vol = request.POST.get('volume')
-            model_app = request.POST.get('app')
-            model_file = ""
-            model_card = ""
-            model_S3 = model_project.s3storage
-            is_file = True
-            # TO DO: find a clever way to understand whether we are using a self-signed cert or not
-            secure_mode = False
-            building_from_current = False
-
-            # Copying folder from passed app that contains trained model
-            # First find the app release name
-            app = AppInstance.objects.get(pk=model_app)
-            app_release = app.parameters['release']     # e.g 'rfc058c6f'
-            # Now find the related pod
-            cmd = 'kubectl get po -l release=' + app_release + \
-                ' -o jsonpath="{.items[0].metadata.name}"'
-            try:
-                result = subprocess.check_output(cmd, shell=True)
-                # because the above subprocess run returns a byte-like object
-                app_pod = result.decode('utf-8')
-            except subprocess.CalledProcessError:
-                messages.error(
-                    request, 'Oops, something went wrong: the model object was not created!')
-                return redirect(redirect_url)
-
-            # Copy model folder from pod to a temp location within studio pod
-            temp_folder_path = settings.BASE_DIR + '/tmp'    # which should be /app/tmp
-            # Create and move into the new directory
-            try:
-                os.mkdir(temp_folder_path)
-                os.chdir(temp_folder_path)
-                os.getcwd()
-            except OSError as error:
-                print(error)
-            # e.g. kubectl cp rfc058c6f-5fdb99c68c-kw5qb:/home/jovyan/work/project-vol/models ./models
-            # Note: default namespace is assumed here
-            cmd = 'kubectl cp ' + app_pod + ':/home/jovyan/work/' + model_persistent_vol + \
-                '/' + model_folder_name + ' ' + './' + model_folder_name
-            try:
-                result = subprocess.check_output(cmd, shell=True)
-                print('LOG INFO SUBPROCESS - FOLDER COPY WITH KUBECTL: ',
-                      result.decode('utf-8'))
-            except (subprocess.CalledProcessError, FileNotFoundError):
-                messages.error(
-                    request, 'Oops, something went wrong: Models folder could not be copied')
-                return redirect(redirect_url)
-
-            # Creating new file to be compressed as a tar
-            if model_file == "":
-                building_from_current = True
-
-                model_file = '{}.tar.gz'.format(self.model_uid)
-                f = open(model_file, 'w')
-                f.close()
-
-                try:
-                    result = subprocess.run(['tar', '--exclude={}'.format(
-                        model_file), '-czvf', model_file, model_folder_name], stdout=subprocess.PIPE, check=True)
-                    print('LOG INFO SUBPROCESS - ARCHIVE CREATION: ', result)
-                except (subprocess.CalledProcessError, FileNotFoundError):
-                    messages.error(
-                        request, "Oops, something went wrong: The archive for the model folder was not created!")
-                    # Clean up
-                    os.system('rm {}.tar.gz'.format(self.model_uid))
-                    os.system('rm -rf {}'.format(temp_folder_path))
-                    return redirect(redirect_url)
-
-            if model_card == "" or model_card == None:
-                model_card_html_string = ""
-            else:
-                with open(model_card, 'r') as f:
-                    model_card_html_string = f.read()
-
-            # Method from helpers.py, where S3 related methods exists
-            artifact_name = model_name + '_' + self.model_uid + '.tar'
-            status = set_artifact(artifact_name, model_file, model_folder_name,
-                                  model_S3, is_file=is_file, secure_mode=secure_mode)
-
-            if not status:
-                messages.error(
-                    request, 'Oops, something went wrong: failed to upload model to S3 storage!')
-                return redirect(redirect_url)
-
-            new_model = Model(uid=artifact_name,
-                              name=model_name,
-                              bucket=model_folder_name,
-                              description=model_description,
-                              release_type=model_release_type,
-                              version=model_version,
-                              model_card="",
-                              path=model_folder_name,
-                              project=model_project,
-                              s3=model_S3,
-                              access='PR')
-            new_model.save()
-
-            # Setting the model object type based on form input from user
-            object_type = ObjectType.objects.get(name=model_type)
-            new_model.object_type.set([object_type])
-
-            # Cleaning up generated tar for uploading artifact to S3 storage
-            try:
-                if building_from_current:
-                    os.system('rm {}.tar.gz'.format(self.model_uid))
-                    os.system('rm -rf {}'.format(temp_folder_path))
-                    os.chdir(settings.BASE_DIR)
-            except OSError as error:
-                print(error)
-
-            # Finally, we redirect
-            return redirect(redirect_url)
-        else:
+        if not form.is_valid():
             # Otherwise when form is not valid, it will then show error and the entered inputs
             return render(request, self.template, locals())
+        model_name = form.cleaned_data['name']
+        model_description = form.cleaned_data['description']
+        model_release_type = form.cleaned_data['release_type']
+        model_version = form.cleaned_data['version']
+        model_folder_name = form.cleaned_data['path']
+        model_type = request.POST.get('model-type')
+        model_persistent_vol = request.POST.get('volume')
+        model_app = request.POST.get('app')
+        model_file = ""
+        model_card = ""
+        model_S3 = model_project.s3storage
+        is_file = True
+        # TO DO: find a clever way to understand whether we are using a self-signed cert or not
+        secure_mode = False
+        building_from_current = False
+
+        # Copying folder from passed app that contains trained model
+        # First find the app release name
+        app = AppInstance.objects.get(pk=model_app)
+        app_release = app.parameters['release']     # e.g 'rfc058c6f'
+            # Now find the related pod
+        cmd = (
+            f'kubectl get po -l release={app_release}'
+            + ' -o jsonpath="{.items[0].metadata.name}"'
+        )
+        try:
+            result = subprocess.check_output(cmd, shell=True)
+            # because the above subprocess run returns a byte-like object
+            app_pod = result.decode('utf-8')
+        except subprocess.CalledProcessError:
+            messages.error(
+                request, 'Oops, something went wrong: the model object was not created!')
+            return redirect(redirect_url)
+
+            # Copy model folder from pod to a temp location within studio pod
+        temp_folder_path = f'{settings.BASE_DIR}/tmp'
+        # Create and move into the new directory
+        try:
+            os.mkdir(temp_folder_path)
+            os.chdir(temp_folder_path)
+            os.getcwd()
+        except OSError as error:
+            print(error)
+            # e.g. kubectl cp rfc058c6f-5fdb99c68c-kw5qb:/home/jovyan/work/project-vol/models ./models
+            # Note: default namespace is assumed here
+        cmd = f'kubectl cp {app_pod}:/home/jovyan/work/{model_persistent_vol}/{model_folder_name} ./{model_folder_name}'
+        try:
+            result = subprocess.check_output(cmd, shell=True)
+            print('LOG INFO SUBPROCESS - FOLDER COPY WITH KUBECTL: ',
+                  result.decode('utf-8'))
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            messages.error(
+                request, 'Oops, something went wrong: Models folder could not be copied')
+            return redirect(redirect_url)
+
+            # Creating new file to be compressed as a tar
+        if not model_file:
+            building_from_current = True
+
+            model_file = f'{self.model_uid}.tar.gz'
+            f = open(model_file, 'w')
+            f.close()
+
+            try:
+                result = subprocess.run(
+                    [
+                        'tar',
+                        f'--exclude={model_file}',
+                        '-czvf',
+                        model_file,
+                        model_folder_name,
+                    ],
+                    stdout=subprocess.PIPE,
+                    check=True,
+                )
+                print('LOG INFO SUBPROCESS - ARCHIVE CREATION: ', result)
+            except (subprocess.CalledProcessError, FileNotFoundError):
+                messages.error(
+                    request, "Oops, something went wrong: The archive for the model folder was not created!")
+                    # Clean up
+                os.system(f'rm {self.model_uid}.tar.gz')
+                os.system(f'rm -rf {temp_folder_path}')
+                return redirect(redirect_url)
+
+        if not model_card or model_card is None:
+            model_card_html_string = ""
+        else:
+            with open(model_card, 'r') as f:
+                model_card_html_string = f.read()
+
+            # Method from helpers.py, where S3 related methods exists
+        artifact_name = f'{model_name}_{self.model_uid}.tar'
+        status = set_artifact(artifact_name, model_file, model_folder_name,
+                              model_S3, is_file=is_file, secure_mode=secure_mode)
+
+        if not status:
+            messages.error(
+                request, 'Oops, something went wrong: failed to upload model to S3 storage!')
+            return redirect(redirect_url)
+
+        new_model = Model(uid=artifact_name,
+                          name=model_name,
+                          bucket=model_folder_name,
+                          description=model_description,
+                          release_type=model_release_type,
+                          version=model_version,
+                          model_card="",
+                          path=model_folder_name,
+                          project=model_project,
+                          s3=model_S3,
+                          access='PR')
+        new_model.save()
+
+        # Setting the model object type based on form input from user
+        object_type = ObjectType.objects.get(name=model_type)
+        new_model.object_type.set([object_type])
+
+            # Cleaning up generated tar for uploading artifact to S3 storage
+        try:
+            if building_from_current:
+                os.system(f'rm {self.model_uid}.tar.gz')
+                os.system(f'rm -rf {temp_folder_path}')
+                os.chdir(settings.BASE_DIR)
+        except OSError as error:
+            print(error)
+
+        # Finally, we redirect
+        return redirect(redirect_url)
 
 
 # Published models visible under the "Catalogs" menu
@@ -217,7 +225,6 @@ def index(request, user=None, project=None, id=0):
         published_models = Model.objects.filter(
             project=project).distinct('name')
 
-        return render(request, 'models/index.html', locals())
     else:
         # TODO move tags to separate djapp
 
@@ -239,9 +246,12 @@ def index(request, user=None, project=None, id=0):
                     request.session['model_tags'].pop(str(id))
 
         # reset model_tags if Model Tab on Sidebar pressed
-        if id == 0:
-            if 'tf_add' not in request.GET and 'tf_remove' not in request.GET:
-                request.session['model_tags'] = {}
+        if (
+            id == 0
+            and 'tf_add' not in request.GET
+            and 'tf_remove' not in request.GET
+        ):
+            request.session['model_tags'] = {}
 
         media_url = settings.MEDIA_URL
         published_models = PublishedModel.objects.all()
@@ -277,7 +287,8 @@ def index(request, user=None, project=None, id=0):
 
         request.session.modified = True
 
-        return render(request, 'models/index.html', locals())
+
+    return render(request, 'models/index.html', locals())
 
 
 @login_required
@@ -287,8 +298,7 @@ def list(request, user, project):
     template = 'models_list.html'
 
     # Will be added to locals() which create a dict context with local variables
-    menu = dict()
-    menu['objects'] = 'active'
+    menu = {'objects': 'active'}
     projects = Project.objects.filter(Q(owner=request.user) | Q(
         authorized=request.user), status='active')
     project = Project.objects.filter(Q(owner=request.user) | Q(
@@ -336,8 +346,7 @@ def publish_model(request, user, project, id):
     # Default behavior is that all versions of a model are published.
     models = Model.objects.filter(id=id, name=model.name, project=model.project)
 
-    img = settings.STATIC_ROOT + \
-        'images/patterns/image-{}.png'.format(random.randrange(8, 13))
+    img = f'{settings.STATIC_ROOT}images/patterns/image-{random.randrange(8, 13)}.png'
     img_file = open(img, 'rb')
     image = File(img_file)
 
@@ -475,14 +484,14 @@ def add_docker_image(request, user, project, id):
             tag = form.cleaned_data['tag']
 
             environment = Environment(
-                name=registry+'/'+username,
+                name=f'{registry}/{username}',
                 slug=None,
                 project=model.project,
                 repository=repository,
-                image=image+':'+tag,
+                image=f'{image}:{tag}',
                 registry=None,
                 appenv=None,
-                app=None
+                app=None,
             )
             environment.save()
 
@@ -564,9 +573,8 @@ def details(request, user, project, id):
 
     log_objects = ModelLog.objects.filter(
         project=project.name, trained_model=model)
-    model_logs = []
-    for log in log_objects:
-        model_logs.append({
+    model_logs = [
+        {
             'id': log.id,
             'trained_model': log.trained_model,
             'training_status': log.training_status,
@@ -576,22 +584,22 @@ def details(request, user, project, id):
             'current_git_repo': log.current_git_repo,
             'latest_git_commit': log.latest_git_commit,
             'system_details': ast.literal_eval(log.system_details),
-            'cpu_details': ast.literal_eval(log.cpu_details)
-        })
-
-    md_objects = Metadata.objects.filter(
-        project=project.name, trained_model=model)
-    if md_objects:
+            'cpu_details': ast.literal_eval(log.cpu_details),
+        }
+        for log in log_objects
+    ]
+    if md_objects := Metadata.objects.filter(
+        project=project.name, trained_model=model
+    ):
         metrics = get_chart_data(md_objects)
 
     filename = None
     readme = None
     import requests as r
-    url = 'http://{}-file-controller/models/{}/readme'.format(
-        project.slug, model.name)
+    url = f'http://{project.slug}-file-controller/models/{model.name}/readme'
     try:
         response = r.get(url)
-        if response.status_code == 200 or response.status_code == 203:
+        if response.status_code in [200, 203]:
             payload = response.json()
             if payload['status'] == 'OK':
                 filename = payload['filename']
@@ -599,22 +607,22 @@ def details(request, user, project, id):
                 md = markdown.Markdown(extensions=['extra'])
                 readme = md.convert(payload['readme'])
     except Exception as e:
-        logger.error(
-            "Failed to get response from {} with error: {}".format(url, e))
+        logger.error(f"Failed to get response from {url} with error: {e}")
 
     return render(request, 'models_details.html', locals())
 
 
 def get_chart_data(md_objects):
     new_data.clear()
-    metrics_pre = []
     metrics = []
-    for md_item in md_objects:
-        metrics_pre.append({
+    metrics_pre = [
+        {
             'run_id': md_item.run_id,
             'metrics': ast.literal_eval(md_item.metrics),
-            'parameters': ast.literal_eval(md_item.parameters)
-        })
+            'parameters': ast.literal_eval(md_item.parameters),
+        }
+        for md_item in md_objects
+    ]
     for m in metrics_pre:
         for key, value in m["metrics"].items():
             new_data[key].append([m["run_id"], value, m["parameters"]])
@@ -623,10 +631,8 @@ def get_chart_data(md_objects):
         labels = []
         params = []
         run_id = []
-        run_counter = 0
-        for item in value:
-            run_counter += 1
-            labels.append("Run {}".format(run_counter))
+        for run_counter, item in enumerate(value, start=1):
+            labels.append(f"Run {run_counter}")
             run_id.append(item[0])
             data.append(item[1])
             params.append(item[2])
@@ -698,9 +704,9 @@ def details_public(request, id):
         print("User not logged in.")
     base_template = 'base.html'
     if 'project' in request.session:
-        project_slug = request.session['project']
         #is_authorized = kc.keycloak_verify_user_role(request, project_slug, ['member'])
         if request.user.is_authenticated:
+            project_slug = request.session['project']
             # if is_authorized:
             try:
                 project = Project.objects.filter(Q(owner=request.user) | Q(

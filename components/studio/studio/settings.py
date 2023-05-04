@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/2.2/ref/settings/
 """
 
+
 import os
 import sys
 
@@ -35,11 +36,7 @@ DEBUG = True
 SECRET_KEY = 'pyey3^@n)$id1tc3_g7xcb55n7ii1989jy#&%!yk^z(u1us4@*'
 
 
-if DEBUG:
-    ALLOWED_HOSTS = ['*']
-else:
-    ALLOWED_HOSTS = ['localhost']
-
+ALLOWED_HOSTS = ['*'] if DEBUG else ['localhost']
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
 # Application definition

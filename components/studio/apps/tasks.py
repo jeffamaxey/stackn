@@ -24,8 +24,7 @@ from .models import AppInstance, Apps, AppStatus, ResourceData
 def get_URI(parameters):
     URI = 'https://'+parameters['release']+'.'+parameters['global']['domain']
 
-    URI = URI.strip('/')
-    return URI
+    return URI.strip('/')
 
 
 def process_helm_result(results):
@@ -46,16 +45,18 @@ def post_create_hooks(instance):
         #host = '{}-{}'.format(instance.parameters['release'], instance.parameters['global']['domain'])
 
         # OBS!! TEMP WORKAROUND to be able to connect to minio
-        minio_svc = '{}-minio'.format(instance.parameters['release'])
-        cmd = 'kubectl --kubeconfig ' + settings.KUBECONFIG + ' get svc ' + minio_svc + \
-            ' -o jsonpath="{.spec.clusterIP"}'
+        minio_svc = f"{instance.parameters['release']}-minio"
+        cmd = (
+            f'kubectl --kubeconfig {settings.KUBECONFIG} get svc {minio_svc}'
+            + ' -o jsonpath="{.spec.clusterIP"}'
+        )
         minio_host_url = ''
         try:
             result = subprocess.run(cmd, shell=True, capture_output=True)
             minio_host_url = result.stdout.decode('utf-8')
             minio_host_url += ':9000'
         except subprocess.CalledProcessError:
-            print('Oops, something went wrong running the command: {}'.format(cmd))
+            print(f'Oops, something went wrong running the command: {cmd}')
 
         try:
             s3obj = instance.s3obj
@@ -79,7 +80,7 @@ def post_create_hooks(instance):
         for reg_key in params['apps']['docker_registry'].keys():
             reg_release = params['apps']['docker_registry'][reg_key]['release']
             reg_domain = params['apps']['docker_registry'][reg_key]['global']['domain']
-        repository = reg_release+'.'+reg_domain
+        repository = f'{reg_release}.{reg_domain}'
         registry = AppInstance.objects.get(parameters__contains={
             'release': reg_release
         })
@@ -103,16 +104,17 @@ def post_create_hooks(instance):
         # OBS!! TEMP WORKAROUND to be able to connect to mlflow (internal dns between docker and k8s does not work currently)
         # Sure one could use FQDN but lets avoid going via the internet
         mlflow_svc = instance.parameters['service']["name"]
-        cmd = 'kubectl --kubeconfig ' + settings.KUBECONFIG + ' get svc ' + mlflow_svc + \
-            ' -o jsonpath="{.spec.clusterIP"}'
+        cmd = (
+            f'kubectl --kubeconfig {settings.KUBECONFIG} get svc {mlflow_svc}'
+            + ' -o jsonpath="{.spec.clusterIP"}'
+        )
         mlflow_host_ip = ''
         try:
             result = subprocess.run(cmd, shell=True, capture_output=True)
             mlflow_host_ip = result.stdout.decode('utf-8')
-            mlflow_host_ip += ':{}'.format(
-                instance.parameters['service']["port"])
+            mlflow_host_ip += f""":{instance.parameters['service']["port"]}"""
         except subprocess.CalledProcessError:
-            print('Oops, something went wrong running the command: {}'.format(cmd))
+            print(f'Oops, something went wrong running the command: {cmd}')
 
         s3 = S3.objects.get(pk=instance.parameters['s3']['pk'])
         basic_auth = BasicAuth(owner=instance.owner,
@@ -121,15 +123,16 @@ def post_create_hooks(instance):
                                username=instance.parameters['credentials']['username'],
                                password=instance.parameters['credentials']['password'])
         basic_auth.save()
-        obj = MLFlow(name=instance.name,
-                     project=instance.project,
-                     mlflow_url='https://{}.{}'.format(
-                         instance.parameters['release'], instance.parameters['global']['domain']),
-                     s3=s3,
-                     host=mlflow_host_ip,
-                     basic_auth=basic_auth,
-                     app=instance,
-                     owner=instance.owner)
+        obj = MLFlow(
+            name=instance.name,
+            project=instance.project,
+            mlflow_url=f"https://{instance.parameters['release']}.{instance.parameters['global']['domain']}",
+            s3=s3,
+            host=mlflow_host_ip,
+            basic_auth=basic_auth,
+            app=instance,
+            owner=instance.owner,
+        )
         obj.save()
 
 
@@ -164,15 +167,15 @@ def deploy_resource(instance_pk, action='create'):
 
         # For backwards-compatibility with old ingress spec:
         if 'ingress' not in parameters:
-            parameters['ingress'] = dict()
+            parameters['ingress'] = {}
         try:
-            print("Ingress v1beta1: {}".format(settings.INGRESS_V1BETA1))
+            print(f"Ingress v1beta1: {settings.INGRESS_V1BETA1}")
             parameters['ingress']['v1beta1'] = settings.INGRESS_V1BETA1
         except:
             pass
 
         app_instance.parameters = parameters
-        print("App Instance paramenters: {}".format(app_instance))
+        print(f"App Instance paramenters: {app_instance}")
         app_instance.save()
 
     results = controller.deploy(app_instance.parameters)
@@ -266,7 +269,7 @@ def check_status():
     results = subprocess.run(args, capture_output=True)
     # print(results)
     res_json = json.loads(results.stdout.decode('utf-8'))
-    app_statuses = dict()
+    app_statuses = {}
     # print(res_json)
     # TODO: Handle case of having many pods (could have many replicas, or could be right after update)
     for item in res_json['items']:
@@ -282,7 +285,6 @@ def check_status():
             num_containers = len(item['status']['containerStatuses'])
         except:
             print("Failed to get number of containers.")
-            pass
         num_cont_ready = 0
         if 'containerStatuses' in item['status']:
             for container in item['status']['containerStatuses']:
@@ -303,16 +305,16 @@ def check_status():
     for instance in instances:
         release = instance.parameters['release']
         if release in app_statuses:
-            current_status = app_statuses[release]['phase']
             try:
                 latest_status = AppStatus.objects.filter(
                     appinstance=instance).latest('time').status_type
             except:
                 latest_status = "Unknown"
+            current_status = app_statuses[release]['phase']
             if current_status != latest_status:
-                print("New status for release {}".format(release))
-                print("Current status: {}".format(current_status))
-                print("Previous status: {}".format(latest_status))
+                print(f"New status for release {release}")
+                print(f"Current status: {current_status}")
+                print(f"Previous status: {latest_status}")
                 status = AppStatus(appinstance=instance)
                 # if app_statuses[release]['deletion_status']:
                 #     status.status_type = "Terminated"
@@ -320,18 +322,17 @@ def check_status():
                 status.status_type = app_statuses[release]['phase']
                 # status.info = app_statuses[release]
                 status.save()
-            # else:
-            #     print("No update for release: {}".format(release))
-        else:
-            delete_exists = AppStatus.objects.filter(
-                appinstance=instance, status_type="Terminated").exists()
-            if delete_exists:
-                status = AppStatus(appinstance=instance)
-                status.status_type = "Deleted"
-                status.save()
-                instance.state = "Deleted"
-                instance.deleted_on = datetime.now()
-                instance.save()
+                    # else:
+                    #     print("No update for release: {}".format(release))
+        elif delete_exists := AppStatus.objects.filter(
+            appinstance=instance, status_type="Terminated"
+        ).exists():
+            status = AppStatus(appinstance=instance)
+            status.status_type = "Deleted"
+            status.save()
+            instance.state = "Deleted"
+            instance.deleted_on = datetime.now()
+            instance.save()
 
     # Fetch all app instances whose state is "Deleted" and check whether there are related pods which are still running
     pod_status = 'None'
@@ -341,40 +342,40 @@ def check_status():
             # Find the app instance release name
             app_release = instance.parameters['release']     # e.g 'rfc058c6f'
             # Now check if there exists a pod with that release
-            cmd = 'kubectl --kubeconfig ' + settings.KUBECONFIG + ' get po -l release=' + app_release
+            cmd = f'kubectl --kubeconfig {settings.KUBECONFIG} get po -l release={app_release}'
             try:
                 # returns a byte-like object
                 result = subprocess.run(cmd, shell=True, capture_output=True)
                 result_stdout = result.stdout.decode('utf-8')
                 result_stderr = result.stderr.decode('utf-8')
             except subprocess.CalledProcessError:
-                print('Oops, something went wrong running the command: {}'.format(cmd))
+                print(f'Oops, something went wrong running the command: {cmd}')
 
             if result_stdout != '' and 'No resources found in default namespace.' not in result_stderr:
                 # Extract the the status of the related release pod
-                cmd = 'kubectl --kubeconfig ' + settings.KUBECONFIG + ' get po -l release=' + app_release + \
-                    ' -o jsonpath="{.items[0].status.phase}"'
+                cmd = (
+                    f'kubectl --kubeconfig {settings.KUBECONFIG} get po -l release={app_release}'
+                    + ' -o jsonpath="{.items[0].status.phase}"'
+                )
                 try:
                     result = subprocess.run(
                         cmd, shell=True, capture_output=True)
                     pod_status = result.stdout.decode('utf-8')
                     print(pod_status)
                 except subprocess.CalledProcessError:
-                    print(
-                        'Oops, something went wrong running the command: {}'.format(cmd))
+                    print(f'Oops, something went wrong running the command: {cmd}')
 
                 if pod_status == 'Running' and instance.state == 'Deleted':
                     print(
                         "INFO: Found Running pod associated to an app instance marked as Deleted")
-                    print("INFO: DELETE RESOURCE with release: {}".format(app_release))
-                    cmd = 'helm --kubeconfig ' + settings.KUBECONFIG + ' delete ' + app_release
+                    print(f"INFO: DELETE RESOURCE with release: {app_release}")
+                    cmd = f'helm --kubeconfig {settings.KUBECONFIG} delete {app_release}'
                     try:
                         result = subprocess.run(
                             cmd, shell=True, capture_output=True)
                         print(result)
                     except subprocess.CalledProcessError:
-                        print(
-                            'Oops, something went wrong running the command: {}'.format(cmd))
+                        print(f'Oops, something went wrong running the command: {cmd}')
 
 
 @app.task
@@ -393,7 +394,7 @@ def get_resource_usage():
     except:
         pass
 
-    resources = dict()
+    resources = {}
 
     args_pod = ['kubectl', '--kubeconfig',
                 settings.KUBECONFIG, 'get', 'po', '-o', 'json']
@@ -406,11 +407,12 @@ def get_resource_usage():
                 #         for label in pod['metadata']['labels']:
                 #             resources[label] = pod['metadata']['labels'][label]
                 pod_name = pod['metadata']['name']
-                resources[pod_name] = dict()
-                resources[pod_name]['labels'] = pod['metadata']['labels']
-                resources[pod_name]['cpu'] = 0.0
-                resources[pod_name]['memory'] = 0.0
-                resources[pod_name]['gpu'] = 0
+                resources[pod_name] = {
+                    'labels': pod['metadata']['labels'],
+                    'cpu': 0.0,
+                    'memory': 0.0,
+                    'gpu': 0,
+                }
     except:
         pass
 
@@ -443,8 +445,7 @@ def get_resource_usage():
         pass
     # print(json.dumps(resources, indent=2))
 
-    for key in resources.keys():
-        entry = resources[key]
+    for key, entry in resources.items():
         # print(entry['labels']['release'])
         try:
             appinstance = AppInstance.objects.get(
@@ -456,7 +457,7 @@ def get_resource_usage():
                 appinstance=appinstance, cpu=entry['cpu'], mem=entry['memory'], gpu=entry['gpu'], time=timestamp)
             datapoint.save()
         except:
-            print("Didn't find corresponding AppInstance: {}".format(key))
+            print(f"Didn't find corresponding AppInstance: {key}")
 
     # print(timestamp)
     # print(json.dumps(resources, indent=2))
@@ -469,10 +470,7 @@ def sync_mlflow_models():
     for mlflow_app in mlflow_apps:
 
         current_time = time.time()-600
-        url = 'http://{}/{}'.format(
-            mlflow_app.project.mlflow.host,
-            'api/2.0/preview/mlflow/model-versions/search'
-        )
+        url = f'http://{mlflow_app.project.mlflow.host}/api/2.0/preview/mlflow/model-versions/search'
         res = False
         try:
             res = requests.get(url)
@@ -484,11 +482,11 @@ def sync_mlflow_models():
             models = res.json()
             print(models)
             if len(models) > 0:
+                release = 'major'
                 for item in models['model_versions']:
                     # print(item)
                     name = item['name']
-                    version = 'v{}.0.0'.format(item['version'])
-                    release = 'major'
+                    version = f"v{item['version']}.0.0"
                     source = item['source'].replace('s3://', '').split('/')
                     bucket = source[0]
                     experiment_id = source[1]
@@ -519,7 +517,7 @@ def sync_mlflow_models():
                             stackn_model.status = "CR"
                             stackn_model.save()
         else:
-            print("WARNING: Failed to fetch info from MLflow Server: {}".format(url))
+            print(f"WARNING: Failed to fetch info from MLflow Server: {url}")
 
 
 @app.task
@@ -532,15 +530,15 @@ def clean_resource_usage():
 @app.task
 def remove_deleted_app_instances():
     apps = AppInstance.objects.filter(state="Deleted")
-    print("NUMBER OF APPS TO DELETE: {}".format(len(apps)))
+    print(f"NUMBER OF APPS TO DELETE: {len(apps)}")
     print(len(apps))
     # apps.delete()
     for app in apps:
         try:
             name = app.name
-            print("Deleting app instance: {}".format(name))
+            print(f"Deleting app instance: {name}")
             app.delete()
-            print("Deleted app instance: {}".format(name))
+            print(f"Deleted app instance: {name}")
         except Exception as err:
             print("Failed to delete app instances.")
             print(err)

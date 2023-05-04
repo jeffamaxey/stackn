@@ -13,8 +13,8 @@ import stackn.s3
 def _check_status(r, error_msg="Failed"):
     if (r.status_code < 200 or r.status_code > 299):
         print(error_msg)
-        print('Returned status code: {}'.format(r.status_code))
-        print('Reason: {}'.format(r.reason))
+        print(f'Returned status code: {r.status_code}')
+        print(f'Reason: {r.reason}')
         print(r.text)
         return False
     else:
@@ -46,13 +46,11 @@ def call_admin_endpoint(name, conf={}, params=[]):
         r = requests.get(url, headers=auth_header,
                          verify=conf['STACKN_SECURE'])
     if r:
-        objs = json.loads(r.content)
-        return objs
-    else:
-        print("Fetching {} failed.".format(name))
-        print('Returned status code: {}'.format(r.status_code))
-        print('Reason: {}'.format(r.reason))
-        return None
+        return json.loads(r.content)
+    print(f"Fetching {name} failed.")
+    print(f'Returned status code: {r.status_code}')
+    print(f'Reason: {r.reason}')
+    return None
 
 
 def call_project_endpoint(name, conf={}, params=[]):
@@ -80,7 +78,7 @@ def call_project_endpoint(name, conf={}, params=[]):
         print('Found several matching projects.')
         return
     if not project:
-        print("Project \'{}\' not found.".format(conf['STACKN_PROJECT']))
+        print(f"Project \'{conf['STACKN_PROJECT']}\' not found.")
         return False
 
     project = project[0]
@@ -93,13 +91,11 @@ def call_project_endpoint(name, conf={}, params=[]):
         r = requests.get(url, headers=auth_header,
                          verify=conf['STACKN_SECURE'])
     if r:
-        projects = json.loads(r.content)
-        return projects
-    else:
-        print("Fetching {} failed.".format(name))
-        print('Returned status code: {}'.format(r.status_code))
-        print('Reason: {}'.format(r.reason))
-        return None
+        return json.loads(r.content)
+    print(f"Fetching {name} failed.")
+    print(f'Returned status code: {r.status_code}')
+    print(f'Reason: {r.reason}')
+    return None
 
 
 def setup_project_endpoint_call(conf, endpoint_type):
@@ -123,7 +119,7 @@ def setup_project_endpoint_call(conf, endpoint_type):
         print('Found several matching projects. Please select a specific project.')
         return False, False, False
     elif len(project) == 0:
-        print("Project \'{}\' not found.".format(conf['STACKN_PROJECT']))
+        print(f"Project \'{conf['STACKN_PROJECT']}\' not found.")
         return False, False, False
 
     project = project[0]
@@ -135,35 +131,31 @@ def setup_project_endpoint_call(conf, endpoint_type):
 
 
 def get_endpoints(studio_url):
-    # These endpoints are related to the API available in Studio under: stackn/components/studio/api/
-    endpoints = dict()
-    if (not 'http://' in studio_url) and (not 'https://' in studio_url):
-        studio_url = 'https://'+studio_url
+    if 'http://' not in studio_url and 'https://' not in studio_url:
+        studio_url = f'https://{studio_url}'
     base = studio_url.strip('/')+'/api'
-    endpoints['admin'] = dict()
-    endpoints['admin']['apps'] = base+'/apps/'
-    endpoints['appinstances'] = base+'/projects/{}/appinstances/'
-    endpoints['environments'] = base+'/projects/{}/environments/'
-    endpoints['flavors'] = base+'/projects/{}/flavors/'
-    endpoints['members'] = base+'/projects/{}/members/'
-    endpoints['models'] = base+'/projects/{}/models/'
-    endpoints['mlflow'] = base+'/projects/{}/mlflow/'
-    endpoints['objecttypes'] = base+'/projects/{}/objecttype'
-    endpoints['project_del'] = base+'/projects/{}'
-    endpoints['projects'] = base+'/projects/'
-    endpoints['project_templates'] = base+'/projecttemplates/'
-    endpoints['resources'] = base+'/projects/{}/resources/'
-    endpoints['s3'] = base+'/projects/{}/s3/'
-
-    return endpoints
+    return {
+        'admin': {'apps': f'{base}/apps/'},
+        'appinstances': base + '/projects/{}/appinstances/',
+        'environments': base + '/projects/{}/environments/',
+        'flavors': base + '/projects/{}/flavors/',
+        'members': base + '/projects/{}/members/',
+        'models': base + '/projects/{}/models/',
+        'mlflow': base + '/projects/{}/mlflow/',
+        'objecttypes': base + '/projects/{}/objecttype',
+        'project_del': base + '/projects/{}',
+        'projects': f'{base}/projects/',
+        'project_templates': f'{base}/projecttemplates/',
+        'resources': base + '/projects/{}/resources/',
+        's3': base + '/projects/{}/s3/',
+    }
 
 
 def get_auth_header(conf):
     conf, status = stackn.auth.get_config(conf)
     if not status:
         return False, False
-    auth_header = {"Authorization": "Token {}".format(
-        conf['STACKN_ACCESS_TOKEN'])}
+    auth_header = {"Authorization": f"Token {conf['STACKN_ACCESS_TOKEN']}"}
     return auth_header, conf
 
 
@@ -205,13 +197,11 @@ def get_projects(conf={}, params=[], auth_header=[]):
         r = requests.get(url, headers=auth_header,
                          verify=conf['STACKN_SECURE'])
     if r:
-        projects = json.loads(r.content)
-        return projects
-    else:
-        print("Fetching projects failed.")
-        print('Returned status code: {}'.format(r.status_code))
-        print('Reason: {}'.format(r.reason))
-        return None
+        return json.loads(r.content)
+    print("Fetching projects failed.")
+    print(f'Returned status code: {r.status_code}')
+    print(f'Reason: {r.reason}')
+    return None
 
 
 def get_remote(inp_conf):
@@ -223,10 +213,7 @@ def get_remote(inp_conf):
 
     keys = stackn.auth._get_remote(conf)
 
-    if not keys:
-        return False
-
-    return keys
+    return keys if keys else False
 
 
 # Create functions
@@ -263,10 +250,13 @@ def create_template(template='template.json', image="image.png", studio_url=[], 
 
     endpoints = get_endpoints(conf['STACKN_URL'])
     url = endpoints['project_templates']
-    r = requests.post(url, headers=auth_header, files=file_ob,
-                      data=payload, verify=conf['STACKN_SECURE'])
-
-    if r:
+    if r := requests.post(
+        url,
+        headers=auth_header,
+        files=file_ob,
+        data=payload,
+        verify=conf['STACKN_SECURE'],
+    ):
         print("Created template.")
     else:
         print("Failed to create template.")
@@ -317,22 +307,16 @@ def create_app(settings="config.json",
         ['tar', '-C', chart_archive, '-czvf', chart_uid, '.'], stdout=subprocess.PIPE)
     file_ob = {'chart': open(chart_uid, 'rb'), 'logo': open(logo, 'rb')}
 
-    ftable = open(settings, 'r')
-    config = json.load(ftable)
-    settings = config['settings']
-    table_field = config['table_field']
-    description = config['description']
-    name = config['name']
-    slug = config['slug']
-    category = config['category']
-    access = 'public'
-    if 'access' in config:
-        access = config['access']
-    priority = 100
-    if 'priority' in config:
-        priority = config['priority']
-    ftable.close()
-
+    with open(settings, 'r') as ftable:
+        config = json.load(ftable)
+        settings = config['settings']
+        table_field = config['table_field']
+        description = config['description']
+        name = config['name']
+        slug = config['slug']
+        category = config['category']
+        access = config['access'] if 'access' in config else 'public'
+        priority = config['priority'] if 'priority' in config else 100
     payload = {
         'name': name,
         'slug': slug,
@@ -349,12 +333,12 @@ def create_app(settings="config.json",
     r = requests.post(url, headers=auth_header, files=file_ob,
                       data=payload, verify=conf['STACKN_SECURE'])
 
-    os.system('rm {}'.format(chart_uid))
+    os.system(f'rm {chart_uid}')
 
     if r:
-        print("Created app {}.".format(name))
+        print(f"Created app {name}.")
     else:
-        print("Failed to create app {}.".format(name))
+        print(f"Failed to create app {name}.")
         print(r.status_code)
         print(r.text)
         print(r.reason)
@@ -386,15 +370,15 @@ def create_project(name,
     url = endpoints['projects']
     data = {'name': name, 'description': description,
             'repository': repository, 'template': template}
-    res = requests.post(url, headers=auth_header, json=data,
-                        verify=conf['STACKN_SECURE'])
-    if res:
-        print('Created project: '+name)
+    if res := requests.post(
+        url, headers=auth_header, json=data, verify=conf['STACKN_SECURE']
+    ):
+        print(f'Created project: {name}')
         conf['STACKN_PROJECT'] = name
         set_current(conf)
     else:
         print('Failed to create project.')
-        print('Status code: {}'.format(res.status_code))
+        print(f'Status code: {res.status_code}')
         print(res.text)
 
 
@@ -420,7 +404,7 @@ def create_meta_resource(filename, studio_url, project, secure):
         print('Found several matching projects.')
         return
     if not project:
-        print("Project {} not found.".format(conf['STACKN_PROJECT']))
+        print(f"Project {conf['STACKN_PROJECT']} not found.")
         return False
 
     project = project[0]
@@ -430,15 +414,15 @@ def create_meta_resource(filename, studio_url, project, secure):
         fin = open(filename, 'r')
         app_data = json.load(fin)
     except:
-        print("Failed to load JSON data from file {}.".format(filename))
+        print(f"Failed to load JSON data from file {filename}.")
 
-    res = requests.post(url, headers=auth_header,
-                        json=app_data, verify=conf['STACKN_SECURE'])
-    if res:
+    if res := requests.post(
+        url, headers=auth_header, json=app_data, verify=conf['STACKN_SECURE']
+    ):
         print('Created resource.')
     else:
         print('Failed to create resource.')
-        print('Status code: {}'.format(res.status_code))
+        print(f'Status code: {res.status_code}')
         print(res.text)
 
 
@@ -482,19 +466,19 @@ def create_object(model_name,
         print('Found several matching projects.')
         return
     if not project:
-        print("Project {} not found.".format(conf['STACKN_PROJECT']))
+        print(f"Project {conf['STACKN_PROJECT']} not found.")
         return False
 
     project = project[0]
-    if s3storage == None:
+    if s3storage is None:
         s3storage = project['s3storage']
-        print("S3 storage set to: {}".format(s3storage))
+        print(f"S3 storage set to: {s3storage}")
     else:
         # TODO: Fetch S3 settings from Studio...
         print("Passing S3 storage as an option is not implemented yet.")
         s3storage = None
 
-    if s3storage == None:
+    if s3storage is None:
         print("S3 storage not set.")
         return False
 
@@ -503,13 +487,15 @@ def create_object(model_name,
 
     if model_file == "":
         building_from_current = True
-        model_file = '{}.tar.gz'.format(model_uid)
+        model_file = f'{model_uid}.tar.gz'
         f = open(model_file, 'w')
         f.close()
-        res = subprocess.run(['tar', '--exclude={}'.format(model_file),
-                             '-czvf', model_file, '.'], stdout=subprocess.PIPE)
+        res = subprocess.run(
+            ['tar', f'--exclude={model_file}', '-czvf', model_file, '.'],
+            stdout=subprocess.PIPE,
+        )
 
-    if model_card == "" or model_card == None:
+    if model_card == "" or model_card is None:
         model_card_html_string = ""
     else:
         with open(model_card, 'r') as f:
@@ -546,9 +532,9 @@ def create_object(model_name,
 
     if building_from_current:
         # Delete temporary archive file.
-        os.system('rm {}'.format(model_file))
+        os.system(f'rm {model_file}')
 
-    print('Released model: {}, release_type: {}'.format(model_name, release_type))
+    print(f'Released model: {model_name}, release_type: {release_type}')
 
     return True
 
@@ -604,22 +590,18 @@ def delete_app(name, studio_url=[], project=[], secure=True):
     for app in apps:
         ai_id = app['id']
         tmp_url = url+str(ai_id)+'/'
-        res = requests.delete(tmp_url, headers=auth_header,
-                              verify=conf['STACKN_SECURE'])
-        if res:
-            print("Deleted app: {}".format(name))
+        if res := requests.delete(
+            tmp_url, headers=auth_header, verify=conf['STACKN_SECURE']
+        ):
+            print(f"Deleted app: {name}")
         else:
             print("Failed to delete app.")
-            print('Status code: {}'.format(res.status_code))
+            print(f'Status code: {res.status_code}')
             print(res.text)
 
 
 def delete_object(name, version=None, studio_url=[], project=[], secure=True):
-    if version:
-        params = {'name': name, 'version': version}
-    else:
-        params = {'name': name}
-
+    params = {'name': name, 'version': version} if version else {'name': name}
     conf = {
         "STACKN_URL": studio_url,
         "STACKN_PROJECT": project,
@@ -640,14 +622,14 @@ def delete_object(name, version=None, studio_url=[], project=[], secure=True):
         print("No model objects found with the given name and/or version.")
 
     for obj in objects:
-        tmp_url = '{}{}/'.format(url, obj['id'])
-        res = requests.delete(tmp_url, headers=auth_header,
-                              verify=conf['STACKN_SECURE'])
-        if res:
-            print("Deleted model object: {}".format(name))
+        tmp_url = f"{url}{obj['id']}/"
+        if res := requests.delete(
+            tmp_url, headers=auth_header, verify=conf['STACKN_SECURE']
+        ):
+            print(f"Deleted model object: {name}")
         else:
             print("Failed to delete model object.")
-            print('Status code: {}'.format(res.status_code))
+            print(f'Status code: {res.status_code}')
             print(res.text)
 
 
@@ -665,14 +647,13 @@ def delete_project(name, studio_url=[], secure=True):
         print("Failed to set up project API endpoint")
         return False
 
-    res = requests.delete(url, headers=auth_header,
-                          verify=conf['STACKN_SECURE'])
-
-    if res:
-        print("Deleted project: {}".format(name))
+    if res := requests.delete(
+        url, headers=auth_header, verify=conf['STACKN_SECURE']
+    ):
+        print(f"Deleted project: {name}")
     else:
         print("Failed to delete project.")
-        print('Status code: {}'.format(res.status_code))
+        print(f'Status code: {res.status_code}')
         print(res.text)
 
 
@@ -699,8 +680,7 @@ def delete_meta_resource(resource_type, name, project=[], studio_url=[], secure=
     if prj_endpts == False:
         return False
     elif len(prj_endpts) == 0:
-        print("No {}: \'{}\' associated with the current project".format(
-            resource_type, name))
+        print(f"No {resource_type}: \'{name}\' associated with the current project")
         return False
     elif len(prj_endpts) > 1:
         print("Found multiple resources with the passed name.")
@@ -708,18 +688,18 @@ def delete_meta_resource(resource_type, name, project=[], studio_url=[], secure=
 
     endpt = prj_endpts[0]
 
-    if resource_type == "mlflow" or resource_type == "s3":
-        url = '{}{}/'.format(url, endpt['name'])
+    if resource_type in ["mlflow", "s3"]:
+        url = f"{url}{endpt['name']}/"
     else:
-        url = '{}{}/'.format(url, endpt['id'])
+        url = f"{url}{endpt['id']}/"
 
-    res = requests.delete(url, headers=auth_header,
-                          verify=conf['STACKN_SECURE'])
-    if res:
-        print("Deleted {}: {}".format(resource_type, name))
+    if res := requests.delete(
+        url, headers=auth_header, verify=conf['STACKN_SECURE']
+    ):
+        print(f"Deleted {resource_type}: {name}")
     else:
-        print("Failed to delete {}.".format(resource_type))
-        print('Status code: {}'.format(res.status_code))
+        print(f"Failed to delete {resource_type}.")
+        print(f'Status code: {res.status_code}')
         print(res.text)
 
 # Set Function
@@ -733,5 +713,3 @@ def set_current(conf):
             print(conf['STACKN_URL'])
         if 'STACKN_PROJECT' in conf:
             print(conf['STACKN_PROJECT'])
-    else:
-        pass

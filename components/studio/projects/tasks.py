@@ -27,10 +27,10 @@ def create_resources_from_template(user, project_slug, template):
     project = Project.objects.get(slug=project_slug)
     print("Parsing template...")
     for key, item in template.items():
-        print("Key {}".format(key))
-        if 'flavors' == key:
+        print(f"Key {key}")
+        if key == 'flavors':
             flavors = item
-            print("Flavors: {}".format(flavors))
+            print(f"Flavors: {flavors}")
             for key, item in flavors.items():
                 flavor = Flavor(name=key,
                                 cpu_req=item['cpu']['requirement'],
@@ -43,9 +43,9 @@ def create_resources_from_template(user, project_slug, template):
                                 ephmem_lim=item['ephmem']['limit'],
                                 project=project)
                 flavor.save()
-        elif 'environments' == key:
+        elif key == 'environments':
             environments = item
-            print("Environments: {}".format(environments))
+            print(f"Environments: {environments}")
             for key, item in environments.items():
                 try:
                     app = Apps.objects.filter(
@@ -65,16 +65,16 @@ def create_resources_from_template(user, project_slug, template):
                                               app=app)
                     environment.save()
                 except Exception as err:
-                    print("Failed to create new environment: {}".format(key))
+                    print(f"Failed to create new environment: {key}")
                     print(project)
                     print(item['repository'])
                     print(item['image'])
                     print(app)
                     print(user)
                     print(err)
-        elif 'apps' == key:
+        elif key == 'apps':
             apps = item
-            print("Apps: {}".format(apps))
+            print(f"Apps: {apps}")
             for key, item in apps.items():
                 app_name = key
                 data = {
@@ -83,15 +83,18 @@ def create_resources_from_template(user, project_slug, template):
                 }
                 if 'credentials.access_key' in item:
                     item['credentials.access_key'] = ''.join(
-                        secrets.choice(alphabet) for i in range(8))
+                        secrets.choice(alphabet) for _ in range(8)
+                    )
                 if 'credentials.secret_key' in item:
                     item['credentials.secret_key'] = ''.join(
-                        secrets.choice(alphabet) for i in range(14))
+                        secrets.choice(alphabet) for _ in range(14)
+                    )
                 if 'credentials.username' in item:
                     item['credentials.username'] = 'admin'
                 if 'credentials.password' in item:
                     item['credentials.password'] = ''.join(
-                        secrets.choice(alphabet) for i in range(14))
+                        secrets.choice(alphabet) for _ in range(14)
+                    )
 
                 data = {**data, **item}
                 print("DATA TEMPLATE")
@@ -101,9 +104,9 @@ def create_resources_from_template(user, project_slug, template):
                 res = appviews.create(request=request, user=user, project=project.slug,
                                       app_slug=item['slug'], data=data, wait=True, call=True)
 
-        elif 'settings' == key:
+        elif key == 'settings':
             print("PARSING SETTINGS")
-            print("Settings: {}".format(settings))
+            print(f"Settings: {settings}")
             if 'project-S3' in item:
                 print("SETTING DEFAULT S3")
                 s3storage = item['project-S3']

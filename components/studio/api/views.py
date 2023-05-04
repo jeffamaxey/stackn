@@ -80,11 +80,10 @@ class ModelList(GenericViewSet, CreateModelMixin, RetrieveModelMixin, UpdateMode
     def destroy(self, request, *args, **kwargs):
         project = Project.objects.get(id=self.kwargs['project_pk'])
         model = self.get_object()
-        if model.project == project:
-            model.delete()
-            return HttpResponse('ok', 200)
-        else:
+        if model.project != project:
             return HttpResponse('User is not allowed to delete object.', 403)
+        model.delete()
+        return HttpResponse('ok', 200)
 
     def create(self, request, *args, **kwargs):
         project = Project.objects.get(id=self.kwargs['project_pk'])
@@ -94,7 +93,7 @@ class ModelList(GenericViewSet, CreateModelMixin, RetrieveModelMixin, UpdateMode
             model_name = request.data['name']
             prev_model = Model.objects.filter(
                 name=model_name, project=project).order_by('-version')
-            print("INFO - Previous Model Objects: {}".format(prev_model))
+            print(f"INFO - Previous Model Objects: {prev_model}")
             if len(prev_model) > 0:
                 print("ACCESS")
                 access = prev_model[0].access
@@ -134,9 +133,9 @@ class ModelList(GenericViewSet, CreateModelMixin, RetrieveModelMixin, UpdateMode
             # new_model.model_card_headline.save(img_uid, image)
             new_model.object_type.set([object_type])
 
-            pmodel = PublishedModel.objects.get(
-                name=new_model.name, project=new_model.project)
-            if pmodel:
+            if pmodel := PublishedModel.objects.get(
+                name=new_model.name, project=new_model.project
+            ):
                 # Model is published, so we should create a new
                 # PublishModelObject.
 
@@ -224,8 +223,7 @@ class MembersList(generics.ListAPIView, GenericViewSet, CreateModelMixin, Retrie
         auth_users = proj[0].authorized.all()
         print(owner)
         print(auth_users)
-        ids = set()
-        ids.add(owner.pk)
+        ids = {owner.pk}
         for user in auth_users:
             ids.add(user.pk)
         # return [owner, authorized]
@@ -252,13 +250,12 @@ class MembersList(generics.ListAPIView, GenericViewSet, CreateModelMixin, Retrie
         user = User.objects.get(pk=user_id)
         print('user')
         print(user)
-        if user.username != project.owner.username:
-            print('username'+user.username)
-            project.authorized.remove(user)
-            for role in settings.PROJECT_ROLES:
-                return HttpResponse('Successfully removed members.', status=200)
-        else:
+        if user.username == project.owner.username:
             return HttpResponse('Cannot remove owner of project.', status=400)
+        print(f'username{user.username}')
+        project.authorized.remove(user)
+        for _ in settings.PROJECT_ROLES:
+            return HttpResponse('Successfully removed members.', status=200)
         return HttpResponse('Failed to remove user.', status=400)
 
 
@@ -330,12 +327,20 @@ class ProjectList(generics.ListAPIView, GenericViewSet, CreateModelMixin, Retrie
             project.delete()
             return HttpResponse('Failed to create project.', status=200)
         else:
-            l1 = ProjectLog(project=project, module='PR', headline='Project created',
-                            description='Created project {}'.format(project.name))
+            l1 = ProjectLog(
+                project=project,
+                module='PR',
+                headline='Project created',
+                description=f'Created project {project.name}',
+            )
             l1.save()
 
-            l2 = ProjectLog(project=project, module='PR', headline='Getting started',
-                            description='Getting started with project {}'.format(project.name))
+            l2 = ProjectLog(
+                project=project,
+                module='PR',
+                headline='Getting started',
+                description=f'Getting started with project {project.name}',
+            )
             l2.save()
 
         if success:
@@ -493,15 +498,17 @@ class ReleaseNameList(GenericViewSet, CreateModelMixin, RetrieveModelMixin, Upda
     def create(self, request, *args, **kwargs):
         name = slugify(request.data['name'])
         project = Project.objects.get(id=self.kwargs['project_pk'])
-        if ReleaseName.objects.filter(name=name).exists():
-            if project.status != 'archived':
-                print("ReleaseName already in use.")
-                return HttpResponse("Release name already in use.", status=200)
+        if (
+            ReleaseName.objects.filter(name=name).exists()
+            and project.status != 'archived'
+        ):
+            print("ReleaseName already in use.")
+            return HttpResponse("Release name already in use.", status=200)
         status = 'active'
 
         rn = ReleaseName(name=name, status=status, project=project)
         rn.save()
-        return HttpResponse("Created release name {}.".format(name), status=200)
+        return HttpResponse(f"Created release name {name}.", status=200)
 
     def destroy(self, request, *args, **kwargs):
         try:
@@ -566,9 +573,9 @@ class AppList(generics.ListAPIView, GenericViewSet, CreateModelMixin, RetrieveMo
         print(name)
         print(slug)
         try:
-            app_latest_rev = Apps.objects.filter(
-                slug=slug).order_by('-revision')
-            if app_latest_rev:
+            if app_latest_rev := Apps.objects.filter(slug=slug).order_by(
+                '-revision'
+            ):
                 revision = app_latest_rev[0].revision+1
             else:
                 revision = 1
@@ -623,9 +630,9 @@ class ProjectTemplateList(generics.ListAPIView, GenericViewSet, CreateModelMixin
             return HttpResponse("Failed to create new template.".format(name), status=400)
 
         try:
-            template_latest_rev = ProjectTemplate.objects.filter(
-                slug=slug).order_by('-revision')
-            if template_latest_rev:
+            if template_latest_rev := ProjectTemplate.objects.filter(
+                slug=slug
+            ).order_by('-revision'):
                 revision = template_latest_rev[0].revision+1
             else:
                 revision = 1
@@ -638,4 +645,4 @@ class ProjectTemplateList(generics.ListAPIView, GenericViewSet, CreateModelMixin
             template.save()
         except Exception as err:
             print(err)
-        return HttpResponse("Created new template: {}.".format(name), status=200)
+        return HttpResponse(f"Created new template: {name}.", status=200)

@@ -53,17 +53,17 @@ def logs(request, user, project, ai_id):
     project = Project.objects.get(slug=project)
     app_settings = app.app.settings
     containers = []
-    logs = []
     if 'logs' in app_settings:
         containers = app_settings['logs']
         container = containers[0]
-        print("default container: "+container)
+        print(f"default container: {container}")
         if 'container' in request.GET:
             container = request.GET.get('container')
-            print("Got container in request: "+container)
+            print(f"Got container in request: {container}")
 
+        logs = []
         try:
-            url = settings.LOKI_SVC+'/loki/api/v1/query_range'
+            url = f'{settings.LOKI_SVC}/loki/api/v1/query_range'
             app_params = app.parameters
             print('{container="'+container +
                   '",release="'+app_params['release']+'"}')
@@ -75,11 +75,10 @@ def logs(request, user, project, ai_id):
             res = requests.get(url, params=query)
             res_json = res.json()['data']['result']
 
+            logline = ''
             for item in res_json:
                 logs.append('----------BEGIN CONTAINER------------')
-                logline = ''
-                for iline in item['values']:
-                    logs.append(iline[1])
+                logs.extend(iline[1] for iline in item['values'])
                 logs.append('----------END CONTAINER------------')
 
         except Exception as e:
@@ -95,8 +94,6 @@ def filtered(request, user, project, category):
     projects = Project.objects.filter(Q(owner=request.user) | Q(
         authorized=request.user), status='active')
     status_success, status_warning = get_status_defs()
-    menu = dict()
-
     template = 'new.html'
     import django.core.exceptions as ex
     try:
@@ -104,7 +101,7 @@ def filtered(request, user, project, category):
     except ex.ObjectDoesNotExist:
         print("No apps are loaded.")
         cat_obj = []
-    menu[category] = 'active'
+    menu = {category: 'active'}
     media_url = settings.MEDIA_URL
     project = Project.objects.get(slug=project)
     try:
@@ -123,15 +120,10 @@ def filtered(request, user, project, category):
         ~Q(state='Deleted') | Q(deleted_on__gte=time_threshold),
         app__category=cat_obj,
         project=project).order_by('-created_on')
-    pk_list = ''
-    for instance in appinstances:
-        pk_list += str(instance.pk)+','
+    pk_list = ''.join(f'{str(instance.pk)},' for instance in appinstances)
     pk_list = pk_list[:-1]
-    pk_list = "'"+pk_list+"'"
-    apps_installed = False
-    if appinstances:
-        apps_installed = True
-
+    pk_list = f"'{pk_list}'"
+    apps_installed = bool(appinstances)
     return render(request, template, locals())
 
 
@@ -145,10 +137,10 @@ def get_status(request, user, project):
     pk = pk.split(',')
     print(pk)
     res = {}
-    if len(pk) > 0 and not (len(pk) == 1 and pk[0] == ''):
+    if len(pk) > 0 and (len(pk) != 1 or pk[0] != ''):
         appinstances = AppInstance.objects.filter(pk__in=pk)
         print(appinstances)
-        res = dict()
+        res = {}
         for instance in appinstances:
             try:
                 status = instance.status.latest().status_type
@@ -161,8 +153,9 @@ def get_status(request, user, project):
                 span_class = 'bg-warning'
             else:
                 span_class = 'bg-danger'
-            res['status-{}'.format(instance.pk)
-                ] = '<span class="badge {}">{}</span>'.format(span_class, status)
+            res[
+                f'status-{instance.pk}'
+            ] = f'<span class="badge {span_class}">{status}</span>'
             print(status)
         print(pk)
     return JsonResponse(res)
@@ -179,11 +172,7 @@ def appsettings(request, user, project, ai_id):
     template = 'create.html'
     app_action = "Settings"
 
-    if 'from' in request.GET:
-        from_page = request.GET.get('from')
-    else:
-        from_page = 'filtered'
-
+    from_page = request.GET.get('from') if 'from' in request.GET else 'filtered'
     project = Project.objects.get(slug=project)
     appinstance = AppInstance.objects.get(pk=ai_id)
     existing_app_name = appinstance.name

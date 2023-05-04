@@ -248,16 +248,12 @@ def set_s3storage(request, user, project_slug, s3storage=[]):
             s3obj = S3.objects.get(name=s3storage, project=project)
         else:
             pk = request.POST.get('s3storage')
-            if pk == 'blank':
-                s3obj = None
-            else:
-                s3obj = S3.objects.get(pk=pk)
-
+            s3obj = None if pk == 'blank' else S3.objects.get(pk=pk)
         project.s3storage = s3obj
         project.save()
 
-        if s3storage:
-            return JsonResponse({"status": "ok"})
+    if s3storage:
+        return JsonResponse({"status": "ok"})
 
     return HttpResponseRedirect(
         reverse('projects:settings', kwargs={'user': user, 'project_slug': project.slug}))
@@ -282,8 +278,8 @@ def set_mlflow(request, user, project_slug, mlflow=[]):
         project.mlflow = mlflowobj
         project.save()
 
-        if mlflow:
-            return JsonResponse({"status": "ok"})
+    if mlflow:
+        return JsonResponse({"status": "ok"})
 
     return HttpResponseRedirect(
         reverse('projects:settings', kwargs={'user': user, 'project_slug': project.slug}))
@@ -313,8 +309,7 @@ def grant_access_to_project(request, user, project_slug):
             project.authorized.add(user_tmp)
             assign_perm('can_view_project', user_tmp, project)
             username_tmp = user_tmp.username
-            logger.info(
-                'Trying to add user {} to project.'.format(username_tmp))
+            logger.info(f'Trying to add user {username_tmp} to project.')
 
     return HttpResponseRedirect(
         reverse('projects:settings', kwargs={'user': user, 'project_slug': project.slug}))
@@ -344,8 +339,7 @@ def revoke_access_to_project(request, user, project_slug):
             project.authorized.remove(user_tmp)
             remove_perm('can_view_project', user_tmp, project)
             username_tmp = user_tmp.username
-            logger.info(
-                'Trying to remove user access {} to project.'.format(username_tmp))
+            logger.info(f'Trying to remove user access {username_tmp} to project.')
 
     # TODO: Currently all project members with 'can_view_projects' can revoke access
     # this handles when the user "remove" herself from the project
@@ -387,16 +381,14 @@ def create(request):
 
         # Try to create database project object.
         try:
-            img = django_settings.STATIC_ROOT + \
-                'images/patterns/image-{}.png'.format(random.randrange(8, 13))
+            img = f'{django_settings.STATIC_ROOT}images/patterns/image-{random.randrange(8, 13)}.png'
             print(img)
-            img_file = open(img, 'rb')
-            project = Project.objects.create_project(name=name,
-                                                     owner=request.user,
-                                                     description=description,
-                                                     repository=repository)
-            project.project_image.save('default.png', File(img_file))
-            img_file.close()
+            with open(img, 'rb') as img_file:
+                project = Project.objects.create_project(name=name,
+                                                         owner=request.user,
+                                                         description=description,
+                                                         repository=repository)
+                project.project_image.save('default.png', File(img_file))
         except ProjectCreationException as e:
             print("ERROR: Failed to create project database object.")
             success = False
@@ -415,16 +407,23 @@ def create(request):
         if not success:
             project.delete()
         else:
-            l1 = ProjectLog(project=project, module='PR', headline='Project created',
-                            description='Created project {}'.format(project.name))
+            l1 = ProjectLog(
+                project=project,
+                module='PR',
+                headline='Project created',
+                description=f'Created project {project.name}',
+            )
             l1.save()
 
-            l2 = ProjectLog(project=project, module='PR', headline='Getting started',
-                            description='Getting started with project {}'.format(project.name))
+            l2 = ProjectLog(
+                project=project,
+                module='PR',
+                headline='Getting started',
+                description=f'Getting started with project {project.name}',
+            )
             l2.save()
 
-        next_page = request.POST.get(
-            'next', '/{}/{}'.format(request.user, project.slug))
+        next_page = request.POST.get('next', f'/{request.user}/{project.slug}')
 
         return HttpResponseRedirect(next_page, {'message': 'Created project'})
 
@@ -445,11 +444,10 @@ def details(request, user, project_slug):
         print(err)
     if request.user.is_superuser:
         is_authorized = True
-    else:
-        if request.user.is_authenticated:
+    elif request.user.is_authenticated:
 
-            is_authorized = True
-            request.session['project'] = project_slug
+        is_authorized = True
+        request.session['project'] = project_slug
 
     template = 'projects/overview.html'
 
@@ -474,24 +472,21 @@ def details(request, user, project_slug):
         status_warning = django_settings.APPS_STATUS_WARNING
         activity_logs = ProjectLog.objects.filter(
             project=project).order_by('-created_at')[:5]
-        resources = list()
+        resources = []
         cats = AppCategories.objects.all().order_by('-priority')
-        rslugs = []
-        for cat in cats:
-            rslugs.append({"slug": cat.slug, "name": cat.name})
-
+        rslugs = [{"slug": cat.slug, "name": cat.name} for cat in cats]
         for rslug in rslugs:
             tmp = AppInstance.objects.filter(~Q(state="Deleted"), Q(owner=request.user) | Q(permission__projects__slug=project.slug) | Q(permission__public=True),
                                              project=project,
                                              app__category__slug=rslug['slug']).order_by('-created_on')[:5]
             for instance in tmp:
-                pk_list += str(instance.pk)+','
+                pk_list += f'{str(instance.pk)},'
             apps_filtered = Apps.objects.filter(category__slug=rslug['slug'], user_can_create=True).order_by(
                 'slug', '-revision').distinct('slug')
             resources.append(
                 {"title": rslug['name'], "objs": tmp, "apps": apps_filtered})
         pk_list = pk_list[:-1]
-        pk_list = "'"+pk_list+"'"
+        pk_list = f"'{pk_list}'"
         models = Model.objects.filter(
             project=project).order_by('-uploaded_at')[:10]
 
@@ -545,17 +540,15 @@ def publish_project(request, user, project_slug):
             base64_bytes = base64.b64encode(user_password_bytes)
             user_password_encoded = base64_bytes.decode('ascii')
 
-            url = 'http://{}-file-controller/project/{}/push/{}/{}'.format(
-                project_slug, project_slug[:-4], user_name, user_password_encoded)
+            url = f'http://{project_slug}-file-controller/project/{project_slug[:-4]}/push/{user_name}/{user_password_encoded}'
             try:
                 response = r.get(url)
 
-                if response.status_code == 200 or response.status_code == 203:
+                if response.status_code in {200, 203}:
                     payload = response.json()
 
                     if payload['status'] == 'OK':
-                        clone_url = payload['clone_url']
-                        if clone_url:
+                        if clone_url := payload['clone_url']:
                             project.clone_url = clone_url
                             project.save()
 
@@ -564,8 +557,7 @@ def publish_project(request, user, project_slug):
                                                url=project.clone_url))
                             l.save()
             except Exception as e:
-                logger.error(
-                    "Failed to get response from {} with error: {}".format(url, e))
+                logger.error(f"Failed to get response from {url} with error: {e}")
 
     return HttpResponseRedirect(
         reverse('projects:settings', kwargs={'user': user, 'project_slug': project_slug}))

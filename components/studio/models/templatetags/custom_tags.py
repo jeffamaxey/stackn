@@ -18,9 +18,7 @@ def sort_by(queryset, order):
 
 @register.filter(name='exists')
 def exists(value, arg):
-    if str(arg) in value:
-        return True
-    return False
+    return str(arg) in value
 
 
 @register.filter(name='count_str')

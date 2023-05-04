@@ -61,9 +61,7 @@ def get_instance_from_definition(instance):
     ret = ret.format(name=instance.name)
 
     import yaml
-    ret = yaml.safe_load(ret)
-
-    return ret
+    return yaml.safe_load(ret)
 
 
 def start_job(definition):
@@ -97,15 +95,17 @@ def build_definition(instance):
     decrypted_secret = minio_keys['project_secret']
 
     build_templ = Template(DEPLOY_DEFINITION_TEMPLATE)
-    image = 'registry.{}/depdef-{}'.format(settings.DOMAIN, instance.name)
-    job = build_templ.substitute(bucket=instance.bucket,
-                                 context=instance.filename,
-                                 name=instance.name,
-                                 jobid=uuid.uuid1().hex[0:5],
-                                 image='{}.default.svc.cluster.local:5000/depdef-{}'.format(settings.REGISTRY_SVC, instance.name),
-                                 access_key=decrypted_key,
-                                 secret_key=decrypted_secret,
-                                 s3endpoint='http://{}-minio:9000'.format(instance.project.slug))
+    image = f'registry.{settings.DOMAIN}/depdef-{instance.name}'
+    job = build_templ.substitute(
+        bucket=instance.bucket,
+        context=instance.filename,
+        name=instance.name,
+        jobid=uuid.uuid1().hex[:5],
+        image=f'{settings.REGISTRY_SVC}.default.svc.cluster.local:5000/depdef-{instance.name}',
+        access_key=decrypted_key,
+        secret_key=decrypted_secret,
+        s3endpoint=f'http://{instance.project.slug}-minio:9000',
+    )
     import yaml
     job = yaml.safe_load(job)
     start_job(job)

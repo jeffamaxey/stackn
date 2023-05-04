@@ -12,15 +12,15 @@ class Version:
     # Release a new version
     # Default is new minor version
     def release(self, release_type='minor'):
-        if release_type == 'minor':
+        if release_type == 'major':
+            self.major = self.major+1
+            self.minor = 0
+            self.patch = 0
+        elif release_type == 'minor':
             self.minor = self.minor+1
             self.patch = 0
         elif release_type == 'patch':
             self.patch = self.patch+1
-        elif release_type == 'major':
-            self.major = self.major+1
-            self.minor = 0
-            self.patch = 0
         else:
             return False, "Incorrect release type (major, minor, patch)."
 
@@ -47,19 +47,17 @@ class Version:
         return False
 
     def __eq__(self, other):
-        if self.major == other.major and self.minor == other.minor and self.patch == other.minor:
-            return True
-
-        return False
+        return (
+            self.major == other.major
+            and self.minor == other.minor
+            and self.patch == other.minor
+        )
 
     def __lt__(self, other):
-        if other.__gt__(self) or self.__eq__(other):
-            return False
-
-        return True
+        return not other.__gt__(self) and not self.__eq__(other)
 
     def release_types(self):
         return ['major', 'minor', 'patch']
 
     def __str__(self):
-        return 'v{}.{}.{}'.format(self.major, self.minor, self.patch)
+        return f'v{self.major}.{self.minor}.{self.patch}'

@@ -29,21 +29,26 @@ def compare_version(v1, v2):
 class ModelManager(models.Manager):
 
     def sorted_by_version(self, model_name, project):
-        models = super().get_queryset().filter(project=project, name=model_name)
-        if models:
+        if (
+            models := super()
+            .get_queryset()
+            .filter(project=project, name=model_name)
+        ):
             models = sorted(models, key=cmp_to_key(compare_version))
             return models
         return []
 
     # Get latest version.
     def latest(self, model_name, project):
-        # Get all models in the project
-        models = super().get_queryset().filter(project=project, name=model_name)
-        if models:
+        if (
+            models := super()
+            .get_queryset()
+            .filter(project=project, name=model_name)
+        ):
             # Sort by version
             models = sorted(models, key=cmp_to_key(compare_version))
             for model in models:
-                print('{}-{}'.format(model.name, model.version))
+                print(f'{model.name}-{model.version}')
             return models[0]
 
         return []
@@ -177,29 +182,25 @@ class Metadata(models.Model):
 def pre_save_model(sender, instance, using, **kwargs):
     # Load version backend
     VERSION_CLASS = import_string(settings.VERSION_BACKEND)
-    # Set version
-    release_type = instance.release_type
     # If version is not already set, create new release
     if not instance.version:
         # Get latest release and bump:
         model = Model.objects_version.latest(instance.name, instance.project)
-        if not model:
-            # This is the first release
-            new_version = VERSION_CLASS()
-        else:
-            new_version = VERSION_CLASS(model.version)
-
+        new_version = VERSION_CLASS(model.version) if model else VERSION_CLASS()
+        # Set version
+        release_type = instance.release_type
         release_status, instance.version = new_version.release(release_type)
-        print('New version: '+instance.version)
+        print(f'New version: {instance.version}')
         if not release_status:
-            raise Exception('Failed to create new release for model {}-{}, release type {}.'.format(
-                instance.name, instance.version, release_type))
+            raise Exception(
+                f'Failed to create new release for model {instance.name}-{instance.version}, release type {release_type}.'
+            )
 
 
 @receiver(pre_delete, sender=Model, dispatch_uid='model_pre_delete_signal')
 def pre_delete_model(sender, instance, using, **kwargs):
     # Model is saved in bucket 'model' with filename 'instance.uid'
-    minio_url = '{}-minio.{}'.format(instance.project.slug, settings.DOMAIN)
+    minio_url = f'{instance.project.slug}-minio.{settings.DOMAIN}'
     minio_keys = get_minio_keys(instance.project)
     try:
         client = Minio(instance.project.s3storage.host,
@@ -208,7 +209,7 @@ def pre_delete_model(sender, instance, using, **kwargs):
                        secure=settings.OIDC_VERIFY_SSL)
         client.remove_object('models', instance.uid)
     except:
-        print('Failed to delete model object {} from minio store.'.format(instance.uid))
+        print(f'Failed to delete model object {instance.uid} from minio store.')
     # Check if model has been deployed, if so, delete deployment.
     if instance.status == 'DP':
         deployment = DeploymentInstance.objects.get(model=instance)

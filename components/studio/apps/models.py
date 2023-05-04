@@ -53,7 +53,7 @@ class Apps(models.Model):
         unique_together = ('slug', 'revision',)
 
     def __str__(self):
-        return str(self.name)+'({})'.format(self.revision)
+        return f'{str(self.name)}({self.revision})'
 
 
 class AppInstance(models.Model):
@@ -78,7 +78,7 @@ class AppInstance(models.Model):
     updated_on = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return str(self.name)+' ({})-{}-{}-{}'.format(self.state, self.owner, self.app.name, self.project)
+        return f'{str(self.name)} ({self.state})-{self.owner}-{self.app.name}-{self.project}'
 
 
 class AppStatus(models.Model):
@@ -92,7 +92,7 @@ class AppStatus(models.Model):
         get_latest_by = 'time'
 
     def __str__(self):
-        return str(self.appinstance.name)+"({})".format(self.time)
+        return f"{str(self.appinstance.name)}({self.time})"
 
 
 class ResourceData(models.Model):

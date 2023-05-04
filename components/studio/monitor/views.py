@@ -22,7 +22,7 @@ from .helpers import (get_all, get_labs_cpu_requests, get_labs_memory_requests,
 
 
 def get_cpu_mem(resources, project_slug, resource_type):
-    res_list = list()
+    res_list = []
     for resource in resources:
         res_cpu_limit = get_resource(
             project_slug, resource_type, 'limits', 'cpu_cores', app_name=resource.appname)
@@ -37,20 +37,7 @@ def get_cpu_mem(resources, project_slug, resource_type):
             project_slug, resource_type, 'requests', 'memory_bytes', app_name=resource.appname)
         res_mem_request = "{:.2f}".format(float(res_mem_request)/1e9*0.931323)
 
-        if resource_type == 'lab':
-            res_owner = resource.lab_session_owner.username
-            res_flavor = resource.flavor_slug
-            res_id = str(resource.id)
-            res_name = resource.name
-            res_project = resource.project.name
-            res_status = resource.status
-            res_created = resource.created_at
-            res_updated = resource.updated_at
-
-            res_list.append((res_owner, res_flavor, res_cpu_limit, res_cpu_request, res_mem_limit,
-                             res_mem_request, res_id, res_name, res_project, res_status, res_created, res_updated))
-
-        elif resource_type == 'deployment':
+        if resource_type == 'deployment':
             res_owner = resource.created_by
             res_model = resource.model.name
             res_version = resource.model.version
@@ -63,6 +50,19 @@ def get_cpu_mem(resources, project_slug, resource_type):
 
             res_list.append((res_owner, res_cpu_limit, res_cpu_request, res_mem_limit, res_mem_request,
                              res_id, res_model, res_version, res_project, res_name, res_access, res_endpoint, res_created))
+
+        elif resource_type == 'lab':
+            res_owner = resource.lab_session_owner.username
+            res_flavor = resource.flavor_slug
+            res_id = str(resource.id)
+            res_name = resource.name
+            res_project = resource.project.name
+            res_status = resource.status
+            res_created = resource.created_at
+            res_updated = resource.updated_at
+
+            res_list.append((res_owner, res_flavor, res_cpu_limit, res_cpu_request, res_mem_limit,
+                             res_mem_request, res_id, res_name, res_project, res_status, res_created, res_updated))
 
     return res_list
 
@@ -146,8 +146,7 @@ def delete_lab(request, user, project, uid):
         request.session.save()
         return HttpResponse('Not authorized', status=401)
     project = Project.objects.get(slug=project)
-    session = Session.objects.get(id=uid, project=project)
-    if session:
+    if session := Session.objects.get(id=uid, project=project):
         session.helmchart.delete()
 
     return HttpResponseRedirect(
@@ -187,9 +186,7 @@ def usage(request, user, project):
     curr_timestamp = time.time()
     points = ResourceData.objects.filter(
         time__gte=curr_timestamp-2*3600, appinstance__project__slug=project).order_by('time')
-    all_cpus = list()
-    for point in points:
-        all_cpus.append(point.cpu)
+    all_cpus = [point.cpu for point in points]
     # print("NUMBER OF POINTS")
     # print(len(all_cpus))
     # print("MAX:")
@@ -201,15 +198,12 @@ def usage(request, user, project):
 
     labels = list(total.values_list('timeP'))
     labels = list(itertools.chain.from_iterable(labels))
-    step = 1
     np = 200
-    if len(labels) > np:
-        step = round(len(labels)/np)
+    step = round(len(labels)/np) if len(labels) > np else 1
     labels = labels[::step]
-    x_data = list()
-    for label in labels:
-        x_data.append(datetime.fromtimestamp(label).strftime('%H:%M:%S'))
-
+    x_data = [
+        datetime.fromtimestamp(label).strftime('%H:%M:%S') for label in labels
+    ]
     total_mem = list(total.values_list('total_mem'))
     total_mem = list(itertools.chain.from_iterable(total_mem))[::step]
 

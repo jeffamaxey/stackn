@@ -30,10 +30,7 @@ def _compile_model(img_rows=28, img_cols=28):
 
 def load_model(path):
     a = np.load(path)
-    weights = []
-    for i in range(len(a.files)):
-        weights.append(a[str(i)])
-    return weights
+    return [a[str(i)] for i in range(len(a.files))]
 
 def _create_model(name='mnist-keras', seed="seed.npz", dir="models/1/"):
     model = _compile_model()
@@ -54,11 +51,7 @@ def _get_data(out_dir='data'):
 
 def _load_data(data_path, is_train=True):
     # Load data
-    if data_path is None:
-        data = np.load(_get_data_path())
-    else:
-        data = np.load(data_path)
-
+    data = np.load(_get_data_path()) if data_path is None else np.load(data_path)
     if is_train:
         X = data['x_train']
         y = data['y_train']
@@ -76,7 +69,7 @@ def _load_data(data_path, is_train=True):
 
 def _predict(endpoint, n=2, data_path="data/mnist.npz"):
     x, y = _load_data(data_path)
-    samples = x[0:n][::].tolist()
+    samples = x[:n][::].tolist()
 
     input = {'inputs': samples}
 
@@ -88,7 +81,9 @@ def _predict(endpoint, n=2, data_path="data/mnist.npz"):
     info_json = model_info.json()
     print(info_json)
 
-    pred = requests.post(endpoint+':predict', json=input, headers=auth_header, verify=False)
+    pred = requests.post(
+        f'{endpoint}:predict', json=input, headers=auth_header, verify=False
+    )
     pred_json = pred.json()
     print(pred_json)
 
